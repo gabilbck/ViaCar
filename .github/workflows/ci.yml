@@ -1,0 +1,84 @@
+name: CI
+
+# Roda em todo PR e em todo push para as branches de integração.
+# O objetivo é simples: ninguém mergeia com teste quebrado ou erro de tipo.
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  backend:
+    name: Backend — tipos e testes
+    runs-on: ubuntu-latest
+
+    # As regras críticas do ViaCar (a trigger da RN-01, o índice parcial da
+    # RN-02) vivem DENTRO do banco, então a suíte roda contra um Postgres de
+    # verdade — mock não provaria nada sobre elas.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: viacar
+          POSTGRES_PASSWORD: viacar
+          POSTGRES_DB: viacar
+        # 5433 no host porque é a porta que o .env.test versionado espera.
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U viacar"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      # O postinstall do projeto gera o Prisma Client. Sem ele nada compila.
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Verificar tipos
+        run: npm run typecheck
+
+      - name: Compilar
+        run: npm run build
+
+      # O global-setup cria o banco viacar_test e aplica as migrations.
+      - name: Rodar a suíte
+        run: npm test
+
+  frontend:
+    name: Frontend — build
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # `tsc -b && vite build` — pega erro de tipo que o dev server deixa passar.
+      - name: Compilar
+        run: npm run build
