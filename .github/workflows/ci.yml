@@ -4,13 +4,42 @@ name: CI
 # O objetivo é simples: ninguém mergeia com teste quebrado ou erro de tipo.
 on:
   push:
-    branches: [develop, main]
+    branches: [desenvolvimento, main]
   pull_request:
-    branches: [develop, main]
+    branches: [desenvolvimento, main]
+
+# Um push novo no mesmo PR cancela a execução anterior, que já ficou obsoleta.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  # Descobre o que o PR mexeu. O filtro fica aqui, e não em `on.paths`, porque
+  # um workflow que nem dispara deixa o check obrigatório da regra de PR
+  # pendente para sempre; já um job pulado por `if` conta como aprovado.
+  mudancas:
+    name: Detectar mudanças
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filtro.outputs.backend }}
+      frontend: ${{ steps.filtro.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filtro
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - '.github/workflows/**'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/**'
+
   backend:
     name: Backend — tipos e testes
+    needs: mudancas
+    if: needs.mudancas.outputs.backend == 'true'
     runs-on: ubuntu-latest
 
     # As regras críticas do ViaCar (a trigger da RN-01, o índice parcial da
@@ -60,7 +89,9 @@ jobs:
         run: npm test
 
   frontend:
-    name: Frontend — build
+    name: Frontend — lint e build
+    needs: mudancas
+    if: needs.mudancas.outputs.frontend == 'true'
     runs-on: ubuntu-latest
 
     defaults:
@@ -78,6 +109,12 @@ jobs:
 
       - name: Instalar dependências
         run: npm ci
+
+      # Ainda não bloqueia: o App.tsx tem 5 erros de lint herdados. Quando forem
+      # corrigidos, remover o continue-on-error para o lint passar a reprovar PR.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
 
       # `tsc -b && vite build` — pega erro de tipo que o dev server deixa passar.
       - name: Compilar
