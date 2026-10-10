@@ -6,6 +6,7 @@ import {
   criarCarona,
   criarReserva,
   getMeuPerfil,
+  atualizarMeuPerfil,
   getUsuarioSalvo,
   isAuthenticated,
   listarCaronas,
@@ -3290,7 +3291,17 @@ function MeuPerfil({
   const [perfil, setPerfil] =
     useState<Usuario | null>(usuario);
 
+  const [bairro, setBairro] = useState(
+    usuario?.bairro ?? ""
+  );
+  const [telefone, setTelefone] = useState(
+    usuario?.telefone ?? ""
+  );
+
   const [loading, setLoading] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const [sucesso, setSucesso] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -3298,6 +3309,8 @@ function MeuPerfil({
         const data = await getMeuPerfil();
 
         setPerfil(data);
+        setBairro(data.bairro);
+        setTelefone(data.telefone ?? "");
         onUpdate(data);
       } finally {
         setLoading(false);
@@ -3306,6 +3319,44 @@ function MeuPerfil({
 
     load();
   }, []);
+
+  async function handleSalvar(event: React.FormEvent) {
+    event.preventDefault();
+
+    setErro("");
+    setSucesso("");
+
+    const bairroLimpo = bairro.trim();
+    const telefoneLimpo = telefone.trim();
+
+    if (bairroLimpo.length < 2) {
+      setErro("Informe seu bairro com ao menos 2 caracteres.");
+      return;
+    }
+
+    setSalvando(true);
+
+    try {
+      const atualizado = await atualizarMeuPerfil({
+        bairro: bairroLimpo,
+        telefone: telefoneLimpo || null,
+      });
+
+      setPerfil(atualizado);
+      setBairro(atualizado.bairro);
+      setTelefone(atualizado.telefone ?? "");
+      onUpdate(atualizado);
+      setSucesso("Perfil atualizado com sucesso.");
+    } catch (error) {
+      setErro(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível salvar suas alterações."
+      );
+    } finally {
+      setSalvando(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -3320,7 +3371,7 @@ function MeuPerfil({
       <PageTitle
         kicker="CONTA"
         title="Meu perfil"
-        description="Seus dados no ViaCar."
+        description="Atualize bairro e telefone para facilitar contato e busca de caronas."
       />
 
       <div className="profile-card">
@@ -3334,29 +3385,76 @@ function MeuPerfil({
 
         <p>{perfil?.email}</p>
 
-        <div className="profile-info">
+        <div className="profile-info profile-info-readonly">
           <div>
             <small>Matrícula</small>
             <strong>
               {perfil?.matricula}
             </strong>
           </div>
-
-          <div>
-            <small>Bairro</small>
-            <strong>
-              {perfil?.bairro}
-            </strong>
-          </div>
-
-          <div>
-            <small>Telefone</small>
-            <strong>
-              {perfil?.telefone ||
-                "Não informado"}
-            </strong>
-          </div>
         </div>
+
+        <form
+          className="profile-edit-form"
+          onSubmit={handleSalvar}
+        >
+          <div className="form-row">
+            <label>
+              Bairro
+
+              <input
+                type="text"
+                value={bairro}
+                onChange={(event) =>
+                  setBairro(event.target.value)
+                }
+                placeholder="Ex.: Centro"
+                maxLength={80}
+                required
+              />
+            </label>
+
+            <label>
+              Telefone
+
+              <span className="optional-label">
+                opcional
+              </span>
+
+              <input
+                type="tel"
+                value={telefone}
+                onChange={(event) =>
+                  setTelefone(event.target.value)
+                }
+                placeholder="(47) 99999-9999"
+                maxLength={20}
+              />
+            </label>
+          </div>
+
+          {erro && (
+            <div className="error-message">
+              {erro}
+            </div>
+          )}
+
+          {sucesso && (
+            <div className="success-message">
+              {sucesso}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="primary-button profile-save-button"
+            disabled={salvando}
+          >
+            {salvando
+              ? "Salvando..."
+              : "Salvar alterações"}
+          </button>
+        </form>
       </div>
     </div>
   );
