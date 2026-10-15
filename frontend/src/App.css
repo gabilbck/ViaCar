@@ -1403,6 +1403,67 @@ select:focus {
   border-top: 1px solid #edf0f2;
 }
 
+.profile-info-readonly {
+  grid-template-columns: 1fr;
+
+  margin-bottom: 0;
+
+  padding-bottom: 0;
+
+  border-bottom: none;
+}
+
+.profile-edit-form {
+  margin-top: 24px;
+
+  padding-top: 24px;
+
+  border-top: 1px solid #edf0f2;
+
+  text-align: left;
+}
+
+.profile-edit-form label {
+  display: block;
+
+  margin-bottom: 0;
+
+  font-size: 12px;
+
+  font-weight: 600;
+
+  color: #39424e;
+}
+
+.profile-edit-form input {
+  display: block;
+
+  width: 100%;
+
+  margin-top: 6px;
+
+  padding: 10px 12px;
+
+  border: 1px solid #e5e7eb;
+
+  border-radius: 8px;
+
+  font-size: 14px;
+
+  font-weight: 400;
+}
+
+.profile-edit-form .error-message,
+.profile-edit-form .success-message {
+  margin-top: 16px;
+}
+
+.profile-save-button {
+  width: 100%;
+
+  margin-top: 20px;
+}
+
 .profile-info small {
   display: block;
 
