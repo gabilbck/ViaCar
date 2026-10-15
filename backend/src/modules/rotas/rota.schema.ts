@@ -20,7 +20,7 @@ const diasSemana = z
   .min(1, 'Informe ao menos um dia da semana.');
 
 export const criarRotaSchema = z.object({
-  apelido: z.string().trim().min(3, 'Dê um nome à rota com ao menos 3 caracteres.').max(120),
+  apelido: z.string().trim().min(3, 'Dê um nome à rota com ao menos 3 caracteres.').max(120).optional(),
   origemEndereco: z.string().trim().min(5, 'Endereço de origem é obrigatório.').max(200),
   origemBairro: z.string().trim().min(2, 'Bairro de origem é obrigatório.').max(80),
   destinoEndereco: z.string().trim().min(5, 'Endereço de destino é obrigatório.').max(200),
