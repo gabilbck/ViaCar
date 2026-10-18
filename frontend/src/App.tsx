@@ -667,6 +667,9 @@ function Dashboard({
 }) {
   const [catches, setCatches] = useState<Carona[]>([]);
   const [loading, setLoading] = useState(true);
+  const [totalReservas, setTotalReservas] = useState<number | null>(null);
+  const [totalMinhasCaronas, setTotalMinhasCaronas] = useState<number | null>(null);
+  const [totalDisponiveis, setTotalDisponiveis] = useState<number | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -674,6 +677,7 @@ function Dashboard({
         const data = await listarCaronas();
 
         setCatches(data);
+        setTotalDisponiveis(data.length);
       } catch {
         setCatches([]);
       } finally {
@@ -682,6 +686,38 @@ function Dashboard({
     }
 
     load();
+  }, []);
+
+  useEffect(() => {
+    async function loadTotalReservas() {
+      try {
+        const reservas = await listarMinhasReservas();
+        setTotalReservas(
+          reservas.filter((r) => r.status === "CONFIRMADA").length
+        );
+      } catch {
+        setTotalReservas(null);
+      }
+    }
+
+    loadTotalReservas();
+  }, []);
+
+  useEffect(() => {
+    async function loadMinhasCaronas() {
+      try {
+        const caronas = await listarMinhasCaronas();
+        setTotalMinhasCaronas(
+          caronas.filter(
+            (c) => c.status !== "CANCELADA" && c.status !== "CONCLUIDA"
+          ).length
+        );
+      } catch {
+        setTotalMinhasCaronas(null);
+      }
+    }
+
+    loadMinhasCaronas();
   }, []);
 
   const primeiroNome =
@@ -744,11 +780,8 @@ function Dashboard({
           </div>
 
           <div>
-            <span>Carona disponíveis</span>
-
-            <strong>
-              {loading ? "—" : catches.length}
-            </strong>
+            <span>Caronas disponíveis</span>
+            <strong>{totalDisponiveis ?? "—"}</strong>
           </div>
         </button>
 
@@ -763,13 +796,13 @@ function Dashboard({
           <div>
             <span>Minhas reservas</span>
 
-            <strong>—</strong>
+            <strong>{totalReservas ?? "—"}</strong>
           </div>
         </button>
 
         <button
           className="dashboard-stat"
-          onClick={() => onNavigate("oferecer")}
+          onClick={() => onNavigate("minhas-caronas")}
         >
           <div className="dashboard-stat-icon orange">
             ↑
@@ -778,7 +811,7 @@ function Dashboard({
           <div>
             <span>Minhas caronas</span>
 
-            <strong>—</strong>
+            <strong>{totalMinhasCaronas ?? "—"}</strong>
           </div>
         </button>
 
@@ -832,7 +865,7 @@ function Dashboard({
 
           <button
             className="shortcut-card"
-            onClick={() => onNavigate("minhas-caronas")}
+            onClick={() => onNavigate("oferecer")}
           >
             <div className="shortcut-icon green">
               🚘
@@ -2011,8 +2044,7 @@ function MinhasReservas() {
     useState<Reserva[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const [cancelando, setCancelando] =
-  useState<string | null>(null);
+  const [cancelando, setCancelando] = useState<string | null>(null);
 
 const [erro, setErro] = useState("");
 
