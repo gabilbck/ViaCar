@@ -319,8 +319,8 @@ export async function listarCaronas(filtros?: {
   );
 }
 
-export async function listarMinhasCaronas(): Promise<Carona[]> {
-  return request<Carona[]>("/caronas/minhas");
+export async function listarMinhasCaronas(periodo: "proximas" | "passadas" = "proximas"): Promise<Carona[]> {
+  return request<Carona[]>(`/caronas/minhas?periodo=${periodo}`);
 }
 
 export async function buscarCarona(id: string): Promise<Carona> {

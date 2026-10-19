@@ -742,7 +742,14 @@ export const openapi = {
       get: {
         tags: ['Caronas'],
         summary: 'Caronas em que sou o motorista',
-        description: 'De hoje em diante, da mais proxima para a mais distante.',
+        description: 'Sem parametro, de hoje em diante, da mais proxima para a mais distante. ' + 'Com `periodo=passadas`, o historico, da mais recente para a mais antiga.',
+        parameters: [
+          {
+            name: 'periodo',
+            in: 'query',
+            schema: { type: 'string', enum: ['proximas', 'passadas'], default: 'proximas' },
+          },
+        ],
         responses: {
           200: {
             description: 'Minhas caronas',
