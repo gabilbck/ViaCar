@@ -3228,3 +3228,19 @@ select:focus {
     padding: 20px;
   }
 }
+
+.periodo-abas {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.ride-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.status-badge.status-cancelada {
+  background: #fef2f2;
+  color: #dc2626;
+}
