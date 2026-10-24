@@ -170,7 +170,7 @@ export async function getMeuPerfil(): Promise<Usuario> {
 }
 
 export async function atualizarMeuPerfil(data: {
-  telefone?: string;
+  telefone?: string | null;
   bairro?: string;
 }): Promise<Usuario> {
   const usuario = await request<Usuario>("/usuarios/me", {
