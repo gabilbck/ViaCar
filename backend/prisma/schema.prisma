@@ -97,6 +97,12 @@ model Rota {
   destinoEndereco String @map("destino_endereco") @db.VarChar(200)
   destinoBairro   String @map("destino_bairro") @db.VarChar(80)
 
+  /// Chaves de busca do bairro (DT-06): o que o motorista digitou, sem acento,
+  /// sem caixa e com abreviacao por extenso. Calculadas por chaveDeBairro(), em
+  /// shared/utils/bairro.ts. A busca de caronas compara so estas colunas.
+  origemBairroChave  String @map("origem_bairro_chave")
+  destinoBairroChave String @map("destino_bairro_chave")
+
   /// TIME do Postgres. O Prisma devolve como Date ancorado em 1970-01-01;
   /// a API converte para "HH:mm" com os helpers de shared/utils/horario.ts.
   horarioPartida DateTime @map("horario_partida") @db.Time(0)
@@ -113,7 +119,7 @@ model Rota {
   caronas   Carona[]
 
   @@index([motoristaId])
-  @@index([origemBairro, destinoBairro, sentido])
+  @@index([origemBairroChave, destinoBairroChave, sentido])
   @@map("rota")
 }
 

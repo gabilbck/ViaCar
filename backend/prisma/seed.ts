@@ -12,6 +12,7 @@
  */
 import { PrismaClient, Sentido, StatusCarona, StatusReserva } from '@prisma/client';
 import { hash } from 'bcryptjs';
+import { chaveDeBairro } from '../src/shared/utils/bairro';
 import { combinarDiaEHorario, textoParaHora } from '../src/shared/utils/horario';
 
 const prisma = new PrismaClient({ log: ['error'] });
@@ -81,8 +82,10 @@ async function main(): Promise<void> {
       apelido: 'Costa e Silva -> Empresa',
       origemEndereco: 'Rua Ministro Calogeras, 1200',
       origemBairro: 'Costa e Silva',
+      origemBairroChave: chaveDeBairro('Costa e Silva'),
       destinoEndereco: EMPRESA.endereco,
       destinoBairro: EMPRESA.bairro,
+      destinoBairroChave: chaveDeBairro(EMPRESA.bairro),
       horarioPartida: textoParaHora('07:30'),
       sentido: Sentido.IDA,
       diasSemana: DIAS_UTEIS,
@@ -95,8 +98,10 @@ async function main(): Promise<void> {
       apelido: 'Empresa -> Costa e Silva',
       origemEndereco: EMPRESA.endereco,
       origemBairro: EMPRESA.bairro,
+      origemBairroChave: chaveDeBairro(EMPRESA.bairro),
       destinoEndereco: 'Rua Ministro Calogeras, 1200',
       destinoBairro: 'Costa e Silva',
+      destinoBairroChave: chaveDeBairro('Costa e Silva'),
       horarioPartida: textoParaHora('17:40'),
       sentido: Sentido.VOLTA,
       diasSemana: DIAS_UTEIS,
@@ -109,8 +114,10 @@ async function main(): Promise<void> {
       apelido: 'Bucarein -> Empresa',
       origemEndereco: 'Rua Blumenau, 840',
       origemBairro: 'Bucarein',
+      origemBairroChave: chaveDeBairro('Bucarein'),
       destinoEndereco: EMPRESA.endereco,
       destinoBairro: EMPRESA.bairro,
+      destinoBairroChave: chaveDeBairro(EMPRESA.bairro),
       horarioPartida: textoParaHora('07:00'),
       sentido: Sentido.IDA,
       diasSemana: DIAS_UTEIS,

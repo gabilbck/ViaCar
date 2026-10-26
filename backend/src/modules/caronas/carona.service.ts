@@ -1,6 +1,7 @@
 import { Prisma, StatusCarona, StatusReserva, type Rota, type Veiculo } from '@prisma/client';
 import { prisma, type ClientePrisma } from '../../config/prisma';
 import { AppError } from '../../shared/errors/app-error';
+import { chaveDeBairro } from '../../shared/utils/bairro';
 import {
   combinarDiaEHorario,
   formatarInstante,
@@ -267,6 +268,9 @@ export async function listarDoMotorista(motoristaId: string): Promise<CaronaPubl
  *
  * As caronas do próprio usuário ficam de fora: a busca existe para achar quem vai
  * no mesmo caminho, e a RN-04 proíbe reservar vaga na própria carona.
+ *
+ * O bairro é comparado pela chave de busca, nunca pelo texto digitado (DT-06):
+ * "jd america" acha a rota cadastrada como "Jd. América".
  */
 export async function buscar(
   usuarioId: string,
@@ -275,10 +279,10 @@ export async function buscar(
   const rota: Prisma.RotaWhereInput = { motoristaId: { not: usuarioId } };
 
   if (filtros.bairroOrigem) {
-    rota.origemBairro = { contains: filtros.bairroOrigem, mode: 'insensitive' };
+    rota.origemBairroChave = { contains: chaveDeBairro(filtros.bairroOrigem) };
   }
   if (filtros.bairroDestino) {
-    rota.destinoBairro = { contains: filtros.bairroDestino, mode: 'insensitive' };
+    rota.destinoBairroChave = { contains: chaveDeBairro(filtros.bairroDestino) };
   }
   if (filtros.sentido) {
     rota.sentido = filtros.sentido;

@@ -1,6 +1,7 @@
 import { StatusCarona, type Prisma, type Rota } from '@prisma/client';
 import { prisma, type ClientePrisma } from '../../config/prisma';
 import { AppError } from '../../shared/errors/app-error';
+import { chaveDeBairro } from '../../shared/utils/bairro';
 import { textoParaHora } from '../../shared/utils/horario';
 import { paraPublica, type RotaPublica } from './rota.mapper';
 import type { AtualizarRotaDTO, CriarRotaDTO } from './rota.schema';
@@ -36,20 +37,45 @@ export async function carregarDoMotorista(
 }
 
 /**
+ * Chave de busca de cada bairro presente nos dados (DT-06).
+ *
+ * Calculada junto com o bairro, no mesmo `create`/`update`, para que um nunca
+ * mude sem o outro: uma rota com a chave velha some da busca sem erro nenhum.
+ */
+function chavesDosBairros(dados: { origemBairro?: string; destinoBairro?: string }): {
+  origemBairroChave?: string;
+  destinoBairroChave?: string;
+} {
+  return {
+    ...(dados.origemBairro !== undefined && {
+      origemBairroChave: chaveDeBairro(dados.origemBairro),
+    }),
+    ...(dados.destinoBairro !== undefined && {
+      destinoBairroChave: chaveDeBairro(dados.destinoBairro),
+    }),
+  };
+}
+
+/**
  * Normaliza o que vem da API para o formato do banco:
- * "HH:mm" vira TIME, e os dias da semana ficam únicos e em ordem.
+ * "HH:mm" vira TIME, os dias da semana ficam únicos e em ordem, e cada bairro
+ * leva junto a sua chave de busca.
  *
  * A ordenação é invariante do domínio, não formatação: sem ela, `[5,1,5,3]` e
  * `[1,3,5]` descreveriam a mesma rota com valores diferentes no banco, e
  * comparar duas rotas deixaria de funcionar.
  */
-function paraDadosDoBanco<T extends { horarioPartida?: string; diasSemana?: number[] }>(
+function paraDadosDoBanco<
+  T extends { horarioPartida?: string; diasSemana?: number[]; origemBairro?: string; destinoBairro?: string },
+>(
   dados: T,
-): Omit<T, 'horarioPartida' | 'diasSemana'> & { horarioPartida?: Date; diasSemana?: number[] } {
+): Omit<T, 'horarioPartida' | 'diasSemana'> &
+  ReturnType<typeof chavesDosBairros> & { horarioPartida?: Date; diasSemana?: number[] } {
   const { horarioPartida, diasSemana, ...resto } = dados;
 
   return {
     ...resto,
+    ...chavesDosBairros(resto),
     ...(horarioPartida !== undefined && { horarioPartida: textoParaHora(horarioPartida) }),
     ...(diasSemana !== undefined && {
       diasSemana: [...new Set(diasSemana)].sort((a, b) => a - b),

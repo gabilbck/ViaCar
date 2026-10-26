@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { chaveDeBairro } from '../../shared/utils/bairro';
 
 const FORMATO_HORA = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -19,12 +20,24 @@ const diasSemana = z
   )
   .min(1, 'Informe ao menos um dia da semana.');
 
+/**
+ * Bairro que sobra vazio depois de normalizado ("--", "de") geraria chave de
+ * busca vazia, e a rota casaria com qualquer filtro de bairro (DT-06).
+ */
+const bairro = (obrigatorio: string) =>
+  z
+    .string()
+    .trim()
+    .min(2, obrigatorio)
+    .max(80)
+    .refine((texto) => chaveDeBairro(texto) !== '', 'Informe o nome do bairro.');
+
 export const criarRotaSchema = z.object({
   apelido: z.string().trim().min(3, 'Dê um nome à rota com ao menos 3 caracteres.').max(120),
   origemEndereco: z.string().trim().min(5, 'Endereço de origem é obrigatório.').max(200),
-  origemBairro: z.string().trim().min(2, 'Bairro de origem é obrigatório.').max(80),
+  origemBairro: bairro('Bairro de origem é obrigatório.'),
   destinoEndereco: z.string().trim().min(5, 'Endereço de destino é obrigatório.').max(200),
-  destinoBairro: z.string().trim().min(2, 'Bairro de destino é obrigatório.').max(80),
+  destinoBairro: bairro('Bairro de destino é obrigatório.'),
   horarioPartida: z.string().regex(FORMATO_HORA, 'Horário deve estar no formato HH:mm, como "07:30".'),
   sentido: z.enum(['IDA', 'VOLTA'], 'Sentido deve ser IDA (para a empresa) ou VOLTA (para casa).'),
   diasSemana,

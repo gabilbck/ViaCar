@@ -69,7 +69,7 @@ E uma boa notícia prática: a regra crítica do case (RN-01) é validada em **t
 
 | Risco | Impacto | Mitigação sugerida |
 |---|---|---|
-| Bairro em texto livre | Variação de grafia quebra a busca, que é o coração do produto | Normalizar na entrada ou criar tabela de bairros (DT-06) |
+| Bairro em texto livre | Acento, caixa e abreviação já são normalizados na busca. Erro de digitação ("Bucarem") ainda não acha a rota | Cadastro canônico de bairros ou `pg_trgm` (resto do DT-06) |
 | Sem job de transição de status da carona | Carona nunca vira `CONCLUIDA` sozinha, e sem isso não há o que pontuar no N2 | Resolver antes de começar a pontuação (DT-09) |
 | ESLint e Prettier não configurados | A regra de aprovação de PR do acordo é hoje inaplicável | Configurar no primeiro ciclo (DT-15) |
 | RN-10 não resiste a concorrência | Duas reservas simultâneas em caronas diferentes travam linhas diferentes e as duas passam. Cenário raro: exige a mesma pessoa clicando em duas caronas no mesmo instante | DT-31, com o diagnóstico e o caminho prontos na seção de handoff do `debitos-tecnicos.md` |

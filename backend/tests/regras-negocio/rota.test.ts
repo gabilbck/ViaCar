@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { prisma } from '../../src/config/prisma';
+import { criarRotaSchema } from '../../src/modules/rotas/rota.schema';
 import * as rotaService from '../../src/modules/rotas/rota.service';
 import { AppError } from '../../src/shared/errors/app-error';
 import { criarCarona, criarRota, criarUsuario, criarVeiculo, emDias } from '../fabricas';
@@ -49,6 +51,32 @@ describe('cadastro de rota', () => {
     const rota = await rotaService.criar(motorista.id, { ...ROTA, diasSemana: [5, 1, 5, 3] });
 
     expect(rota.diasSemana).toEqual([1, 3, 5]);
+  });
+
+  it('guarda o bairro como digitado e a chave de busca ao lado', async () => {
+    const motorista = await criarUsuario();
+
+    const criada = await rotaService.criar(motorista.id, { ...ROTA, origemBairro: 'Jd. América' });
+
+    const salva = await prisma.rota.findUniqueOrThrow({ where: { id: criada.id } });
+    expect(criada.origemBairro).toBe('Jd. América');
+    expect(salva.origemBairroChave).toBe('jardim america');
+    expect(salva.destinoBairroChave).toBe('zona industrial norte');
+  });
+
+  it('recalcula a chave quando o bairro é editado', async () => {
+    const motorista = await criarUsuario();
+    const criada = await rotaService.criar(motorista.id, ROTA);
+
+    await rotaService.atualizar(criada.id, motorista.id, { destinoBairro: 'Pq. Guarani' });
+
+    const salva = await prisma.rota.findUniqueOrThrow({ where: { id: criada.id } });
+    expect(salva.destinoBairroChave).toBe('parque guarani');
+    expect(salva.origemBairroChave).toBe('costa silva');
+  });
+
+  it('recusa bairro sem nome', () => {
+    expect(criarRotaSchema.safeParse({ ...ROTA, origemBairro: '--' }).success).toBe(false);
   });
 });
 
