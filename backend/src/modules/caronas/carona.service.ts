@@ -19,7 +19,7 @@ import {
   type CaronaDetalhada,
   type CaronaPublica,
 } from './carona.mapper';
-import type { AtualizarCaronaDTO, BuscarCaronasDTO, CriarCaronaDTO } from './carona.schema';
+import type { AtualizarCaronaDTO, BuscarCaronasDTO, CriarCaronaDTO, ListarMinhasCaronasDTO } from './carona.schema';
 
 const STATUS_EDITAVEIS: StatusCarona[] = [StatusCarona.ABERTA, StatusCarona.LOTADA];
 
@@ -255,11 +255,13 @@ export async function criar(motoristaId: string, dados: CriarCaronaDTO): Promise
 }
 
 /** Caronas em que o usuário é o motorista, de hoje em diante. */
-export async function listarDoMotorista(motoristaId: string): Promise<CaronaPublica[]> {
+export async function listarDoMotorista(motoristaId: string, periodo: ListarMinhasCaronasDTO['periodo'] = 'proximas',): Promise<CaronaPublica[]> {
+  const hoje = inicioDoDiaAtual();
+  const passadas = periodo === 'passadas';
   const caronas = await prisma.carona.findMany({
-    where: { rota: { motoristaId }, dataPartida: { gte: inicioDoDiaAtual() } },
+    where: { rota: { motoristaId }, dataPartida: passadas ? { lt: hoje } : { gte: hoje } },
     include: INCLUDE_RESUMO,
-    orderBy: { dataPartida: 'asc' },
+    orderBy: { dataPartida: passadas ? 'desc' : 'asc' },
   });
 
   return caronas.map(paraPublica);

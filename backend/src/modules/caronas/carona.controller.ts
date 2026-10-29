@@ -2,7 +2,7 @@ import type { RequestHandler } from 'express';
 import { usuarioLogado } from '../../shared/middlewares/autenticar';
 import { consultaValidada } from '../../shared/middlewares/validar';
 import { parametroObrigatorio } from '../../shared/utils/parametros';
-import type { BuscarCaronasDTO } from './carona.schema';
+import type { BuscarCaronasDTO, ListarMinhasCaronasDTO } from './carona.schema';
 import * as caronaService from './carona.service';
 
 export const criar: RequestHandler = async (req, res) => {
@@ -16,7 +16,8 @@ export const buscar: RequestHandler = async (req, res) => {
 };
 
 export const listarMinhas: RequestHandler = async (req, res) => {
-  res.json(await caronaService.listarDoMotorista(usuarioLogado(req)));
+  const { periodo } = consultaValidada<ListarMinhasCaronasDTO>(req);
+  res.json(await caronaService.listarDoMotorista(usuarioLogado(req), periodo));
 };
 
 export const buscarPorId: RequestHandler = async (req, res) => {

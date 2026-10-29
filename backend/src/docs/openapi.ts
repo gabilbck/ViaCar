@@ -318,7 +318,7 @@ export const openapi = {
                 properties: {
                   nome: { type: 'string', minLength: 3, maxLength: 120 },
                   email: { type: 'string', format: 'email', maxLength: 160 },
-                  senha: { type: 'string', minLength: 8, maxLength: 72 },
+                  senha: { type: 'string', minLength: 8, maxLength: 72, description: 'Senha precisa ter ao menos 8 caracteres, uma maiúscula, um número e um caractere especial.' },
                   matricula: { type: 'string', minLength: 2, maxLength: 20 },
                   telefone: { type: 'string', maxLength: 20 },
                   bairro: { type: 'string', minLength: 2, maxLength: 80 },
@@ -439,7 +439,7 @@ export const openapi = {
                   placa: { type: 'string', example: 'MHT4A21' },
                   modelo: { type: 'string', maxLength: 80 },
                   cor: { type: 'string', maxLength: 40 },
-                  capacidadePassageiros: { type: 'integer', minimum: 1, maximum: 8 },
+                  capacidadePassageiros: { type: 'integer', minimum: 1, maximum: 8, description: 'NAO inclui o motorista. Um Civic de 5 lugares tem capacidade 4.' },
                 },
               },
               example: { placa: 'MHT4A21', modelo: 'Honda Civic', cor: 'Prata', capacidadePassageiros: 4 },
@@ -506,7 +506,7 @@ export const openapi = {
                   placa: { type: 'string' },
                   modelo: { type: 'string' },
                   cor: { type: 'string' },
-                  capacidadePassageiros: { type: 'integer', minimum: 1, maximum: 8 },
+                  capacidadePassageiros: { type: 'integer', minimum: 1, maximum: 8, description: 'NAO inclui o motorista. Um Civic de 5 lugares tem capacidade 4.' },
                 },
               },
               example: { cor: 'Preto', capacidadePassageiros: 3 },
@@ -756,7 +756,14 @@ export const openapi = {
       get: {
         tags: ['Caronas'],
         summary: 'Caronas em que sou o motorista',
-        description: 'De hoje em diante, da mais proxima para a mais distante.',
+        description: 'Sem parametro, de hoje em diante, da mais proxima para a mais distante. ' + 'Com `periodo=passadas`, o historico, da mais recente para a mais antiga.',
+        parameters: [
+          {
+            name: 'periodo',
+            in: 'query',
+            schema: { type: 'string', enum: ['proximas', 'passadas'], default: 'proximas' },
+          },
+        ],
         responses: {
           200: {
             description: 'Minhas caronas',
