@@ -295,6 +295,7 @@ Formato exigido pela DoR: **"Como [papel], eu quero [funcionalidade] para que [b
 - Todo usuário é funcionário da mesma empresa; não há cadastro público.
 - Bairro é preenchido pelo funcionário como texto livre no N1. A busca compara uma versão normalizada (sem acento, sem caixa, abreviações por extenso), então "Jd. São João" acha "jardim sao joao" (DT-06).
 - Não há cobrança, rateio de combustível nem pagamento dentro do sistema.
+- **A lista de passageiros de uma carona é visível por vínculo com a carona, não por autenticação.** O motorista publica a carona para ser encontrado, e por isso o resumo dele circula na busca; o passageiro não publicou nada para a empresa inteira, entrou numa viagem específica. Decisão do PO em 27/10/2026, detalhada no DT-23 §2.1 — **decidida, ainda não implementada**. Não houve validação com DPO ou jurídico: o ViaCar não tem cliente real no N1, então a política é premissa do time, a ser reconfirmada se o produto sair do contexto acadêmico.
 
 **Questões em aberto (para o próximo ciclo)**
 | # | Questão | Encaminhamento |
@@ -303,3 +304,4 @@ Formato exigido pela DoR: **"Como [papel], eu quero [funcionalidade] para que [b
 | Q-02 | Quem marca a carona como concluída, já que não há job de mudança de status | Registrado como DT-09; impacta a pontuação do N2 |
 | Q-03 | Como tratar feriado e exceção de calendário na recorrência da rota | Registrado como DT-07 |
 | Q-04 | Regra de pontuação do N2 ainda não definida (quanto vale uma viagem) | Levar ao PO no planejamento do N2 |
+| Q-05 | O formulário de reserva não avisa quem verá o ponto de embarque informado | Registrado como DT-32; texto depende de aprovação do PO |

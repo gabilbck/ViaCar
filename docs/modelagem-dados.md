@@ -209,3 +209,4 @@ Decisões já tomadas para quem continuar:
 - `AVALIACAO` tem `UNIQUE (carona_id, avaliador_id, avaliado_id)` — uma nota por pessoa por viagem.
 - Avaliação só é permitida com a carona em `CONCLUIDA` e o avaliador tendo participado dela.
 - A tabela `RESERVA` já tem os status `REALIZADA` / `NAO_COMPARECEU` justamente para alimentar pontuação e conduta. **Não removam esses valores do enum.**
+- Quem grava esses status, e quando, está definido no DT-09 (`debitos-tecnicos.md`): o motorista registra a presença ao fechar a carona, e o fechamento por prazo acrescenta `SEM_REGISTRO`, que não pontua nem penaliza.

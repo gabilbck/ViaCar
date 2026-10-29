@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import "./App.css";
 
 import {
@@ -6,6 +6,7 @@ import {
   criarCarona,
   criarReserva,
   getMeuPerfil,
+  atualizarMeuPerfil,
   getUsuarioSalvo,
   isAuthenticated,
   listarCaronas,
@@ -22,6 +23,9 @@ import {
   login,
   logoutUsuario,
   registrarUsuario,
+  atualizarCarona,
+  cancelarCarona,
+  buscarCarona,
 } from "../api";
 
 import type {
@@ -30,6 +34,7 @@ import type {
   Rota,
   Usuario,
   Veiculo,
+  CaronaDetalhada,
 } from "./types";
 
 type Tela =
@@ -40,6 +45,7 @@ type Tela =
   | "veiculos"
   | "rotas"
   | "perfil"
+  | "detalhes-carona"
   | "oferecer";
 
 function App() {
@@ -355,7 +361,7 @@ function LoginScreen({
             </div>
 
             <div className="password-hint">
-              A senha deve possuir pelo menos 8 caracteres.
+              Mínimo de 8 caracteres, com uma letra maiúscula, um número e um caractere especial (ex.: ! @ # $).
             </div>
 
             {erro && (
@@ -666,6 +672,9 @@ function Dashboard({
 }) {
   const [catches, setCatches] = useState<Carona[]>([]);
   const [loading, setLoading] = useState(true);
+  const [totalReservas, setTotalReservas] = useState<number | null>(null);
+  const [totalMinhasCaronas, setTotalMinhasCaronas] = useState<number | null>(null);
+  const [totalDisponiveis, setTotalDisponiveis] = useState<number | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -673,6 +682,7 @@ function Dashboard({
         const data = await listarCaronas();
 
         setCatches(data);
+        setTotalDisponiveis(data.length);
       } catch {
         setCatches([]);
       } finally {
@@ -681,6 +691,38 @@ function Dashboard({
     }
 
     load();
+  }, []);
+
+  useEffect(() => {
+    async function loadTotalReservas() {
+      try {
+        const reservas = await listarMinhasReservas();
+        setTotalReservas(
+          reservas.filter((r) => r.status === "CONFIRMADA").length
+        );
+      } catch {
+        setTotalReservas(null);
+      }
+    }
+
+    loadTotalReservas();
+  }, []);
+
+  useEffect(() => {
+    async function loadMinhasCaronas() {
+      try {
+        const caronas = await listarMinhasCaronas();
+        setTotalMinhasCaronas(
+          caronas.filter(
+            (c) => c.status !== "CANCELADA" && c.status !== "CONCLUIDA"
+          ).length
+        );
+      } catch {
+        setTotalMinhasCaronas(null);
+      }
+    }
+
+    loadMinhasCaronas();
   }, []);
 
   const primeiroNome =
@@ -743,11 +785,8 @@ function Dashboard({
           </div>
 
           <div>
-            <span>Carona disponíveis</span>
-
-            <strong>
-              {loading ? "—" : catches.length}
-            </strong>
+            <span>Caronas disponíveis</span>
+            <strong>{totalDisponiveis ?? "—"}</strong>
           </div>
         </button>
 
@@ -762,13 +801,13 @@ function Dashboard({
           <div>
             <span>Minhas reservas</span>
 
-            <strong>—</strong>
+            <strong>{totalReservas ?? "—"}</strong>
           </div>
         </button>
 
         <button
           className="dashboard-stat"
-          onClick={() => onNavigate("oferecer")}
+          onClick={() => onNavigate("minhas-caronas")}
         >
           <div className="dashboard-stat-icon orange">
             ↑
@@ -777,7 +816,7 @@ function Dashboard({
           <div>
             <span>Minhas caronas</span>
 
-            <strong>—</strong>
+            <strong>{totalMinhasCaronas ?? "—"}</strong>
           </div>
         </button>
 
@@ -831,7 +870,7 @@ function Dashboard({
 
           <button
             className="shortcut-card"
-            onClick={() => onNavigate("minhas-caronas")}
+            onClick={() => onNavigate("oferecer")}
           >
             <div className="shortcut-icon green">
               🚘
@@ -1343,9 +1382,9 @@ await criarCarona({
 
                 {veiculoSelecionado && (
                   <small className="form-help">
-                    Capacidade do veículo:{" "}
+                    Este veículo comporta até:{" "}
                     {veiculoSelecionado.capacidadePassageiros}{" "}
-                    passageiros.
+                    passageiros, sem contar o motorista.
                   </small>
                 )}
               </label>
@@ -1691,9 +1730,11 @@ function BuscarCaronas() {
 function CaronaCard({
   carona,
   onReserve,
+  acoes,
 }: {
   carona: Carona;
-  onReserve: () => void;
+  onReserve?: () => void;
+  acoes?: ReactNode;
 }) {
   const data = new Date(
     carona.dataPartida
@@ -1724,8 +1765,8 @@ function CaronaCard({
         </div>
 
         <div>
-          <span className="status-badge">
-            {getStatusLabel(carona.status)}
+          <span className={`status-badge ${ carona.status === "CANCELADA" ? "status-cancelada" : ""}`}>
+            {getStatusCaronaExibido(carona)}
           </span>
 
           <h3>
@@ -1808,7 +1849,9 @@ function CaronaCard({
           {carona.veiculo.cor} ·{" "}
           {carona.veiculo.placa}
         </span>
-
+        {acoes !== undefined ? (
+          acoes
+        ) : (
         <button
           className="primary-button small"
           disabled={!podeReservar}
@@ -1818,6 +1861,7 @@ function CaronaCard({
             ? "Reservar vaga"
             : getStatusLabel(carona.status)}
         </button>
+        )}
       </div>
     </article>
   );
@@ -1946,28 +1990,280 @@ function ReservaModal({
   );
 }
 
+function EditarCaronaModal({
+  carona,
+  onClose,
+  onSave,
+}: {
+  carona: Carona;
+  onClose: () => void;
+  onSave: (atualizada: Carona) => void;
+}) {
+  const confirmadas = carona.vagasOfertadas - carona.vagasDisponiveis;
+  const capacidade = carona.veiculo.capacidadePassageiros;
+  const [vagas, setVagas] = useState(carona.vagasOfertadas);
+  const [observacao, setObservacao] = useState(carona.observacao ?? "");
+  const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState("");
+
+  async function salvar() {
+    setLoading(true);
+    setErro("");
+
+    try {
+      const atualizada = await atualizarCarona(carona.id, {
+        vagasOfertadas: vagas,
+        observacao: observacao.trim(),
+      });
+
+      onSave(atualizada);
+    } catch (error) {
+      setErro(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível salvar a carona."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <button className="modal-close" onClick={onClose} disabled={loading}>×</button>
+        <span className="section-kicker">EDITAR CARONA</span>
+        <h2>Alterar vagas ou observação</h2>
+        <div className="modal-summary">
+          <strong>
+            {carona.rota.apelido ||
+              `${carona.rota.origemBairro} → ${carona.rota.destinoBairro}`}
+          </strong>
+          <span>
+            {new Date(
+              carona.dataPartida
+            ).toLocaleDateString("pt-BR")}{" "}
+            às{" "}
+            {carona.rota.horarioPartida}
+          </span>
+        </div>
+        <label>
+          Vagas ofertadas
+          <input
+            type="number"
+            min={Math.max(confirmadas, 1)}
+            max={capacidade}
+            value={vagas}
+            onChange={(event) =>
+              setVagas(Number(event.target.value))
+            }
+          />
+          <small className="form-hint">
+            Mínimo {Math.max(confirmadas, 1)} ({confirmadas} reserva(s)
+            confirmada(s)) · máximo {capacidade} (capacidade do{" "}
+            {carona.veiculo.modelo})
+          </small>
+        </label>
+        <label>
+          Observação
+          <input
+            value={observacao}
+            maxLength={255}
+            onChange={(event) =>
+              setObservacao(event.target.value)
+            }
+            placeholder="Opcional"
+          />
+        </label>
+        {erro && (
+          <div className="error-message">
+            {erro}
+          </div>
+        )}
+        <div className="modal-actions">
+          <button className="secondary-button" onClick={onClose} disabled={loading}>Voltar</button>
+          <button className="primary-button" onClick={salvar} disabled={loading}> {loading ? "Salvando..." : "Salvar alterações"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetalheCaronaModal({
+  caronaId,
+  onClose,
+}: {
+  caronaId: string;
+  onClose: () => void;
+}) {
+  const [carona, setCarona] = useState<CaronaDetalhada | null>(null);
+  const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    async function load() {
+      try {
+        setCarona(await buscarCarona(caronaId));
+      } catch {
+        setErro("Não foi possível carregar os detalhes da carona. Tente novamente.");
+      }
+    }
+
+    load();
+  }, [caronaId]);
+
+  const ocupadas = carona
+    ? carona.vagasOfertadas - carona.vagasDisponiveis
+    : 0;
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <button type="button" className="modal-close" onClick={onClose}>×</button>
+        <span className="section-kicker">DETALHES DA CARONA</span>
+        {erro ? (
+          <div className="error-message">{erro}</div>
+        ) : !carona ? (
+          <div className="loading"> Carregando detalhes da carona...</div>
+        ) : (
+          <>
+            <h2>{carona.rota.apelido || `${carona.rota.origemBairro} → ${carona.rota.destinoBairro}`}</h2>
+            <div className="modal-summary">
+              <strong>{new Date(carona.dataPartida).toLocaleDateString("pt-BR")} às{" "}{carona.rota.horarioPartida}</strong>
+              <span>{getStatusCaronaExibido(carona)} · {carona.veiculo.modelo} ({carona.veiculo.placa})</span>
+              <span> | {ocupadas} de {carona.vagasOfertadas} vagas ocupadas</span>
+            </div>
+            {carona.observacao && (
+              <p><strong>Observação:</strong> {carona.observacao}</p>
+            )}
+            <h3>Passageiros confirmados</h3>
+            {carona.passageiros.length === 0 ? (
+              <p className="form-hint">
+                {carona.status === "CANCELADA"
+                  ? "Esta carona foi cancelada. As reservas foram automaticamente canceladas."
+                  : "Nenhum passageiro confirmou a reserva ainda."}
+              </p>
+            ) : (
+              <ul className="passageiros-lista">
+                {carona.passageiros.map((passageiro) => (
+                  <li key={passageiro.id}>
+                    <strong>{passageiro.nome}</strong>
+                    <span>
+                      {passageiro.bairro} · Embarque:{" "}
+                      {passageiro.pontoEmbarque || "Não informado"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+
+        <div className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ==========================================
 // MINHAS CARONAS
 // ==========================================
 
 function MinhasCaronas() {
+  const [periodo, setPeriodo] = useState<"proximas" | "passadas">("proximas");
   const [caronas, setCaronas] = useState<Carona[]>([]);
-
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState("");
+  const [sucesso, setSucesso] = useState("");
+  const [caronaEditando, setCaronaEditando] = useState<Carona | null>(null);
+  const [caronaCancelando, setCaronaCancelando] = useState<Carona | null>(null);
+  const [cancelando, setCancelando] = useState(false);
+  const [erroCancelamento, setErroCancelamento] = useState("");
+  const [caronaDetalheId, setCaronaDetalheId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
         setCaronas(
-          await listarMinhasCaronas()
+          await listarMinhasCaronas(periodo)
         );
+      } catch {
+        setCaronas([]);
+        setErro("Não foi possível carregar suas caronas. Tente novamente mais tarde.");
       } finally {
         setLoading(false);
       }
     }
 
     load();
-  }, []);
+  }, [periodo]);
+
+  function trocarPeriodo(novoPeriodo: "proximas" | "passadas") {
+    if (novoPeriodo === periodo) return;
+
+      setPeriodo(novoPeriodo);
+      setLoading(true);
+      setErro("");
+      setSucesso("");
+    }
+
+  function substituirNaLista(atualizada: Carona) {
+    setCaronas((atual) =>
+      atual.map((carona) =>
+        carona.id === atualizada.id ? atualizada : carona
+      )
+    );
+  }
+
+  function handleSalvarEdicao(atualizada: Carona) {
+    substituirNaLista(atualizada);
+    setCaronaEditando(null);
+    setSucesso("Carona atualizada com sucesso!");
+  }
+
+  function abrirEdicao(carona: Carona) {
+    setSucesso("");
+    setCaronaEditando(carona);
+  }
+
+  function abrirCancelamento(carona: Carona) {
+    setCaronaCancelando(carona);
+    setErroCancelamento("");
+    setSucesso("");
+  }
+
+  async function confirmarCancelamento() {
+    if (!caronaCancelando) return;
+
+    setCancelando(true);
+    setErroCancelamento("");
+
+    try {
+      substituirNaLista(await cancelarCarona(caronaCancelando.id));
+      setCaronaCancelando(null);
+      setSucesso("Carona cancelada com sucesso!");
+    } catch (error) {
+      setErroCancelamento(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível cancelar a carona."
+      );
+    } finally {
+      setCancelando(false);
+    }
+  }
+
+  function podeAlterar(carona: Carona) {
+    return (
+      periodo === "proximas" &&
+      (carona.status === "ABERTA" || carona.status === "LOTADA")
+    );
+  }
+
+  const reservasAfetadas = caronaCancelando
+    ? caronaCancelando.vagasOfertadas - caronaCancelando.vagasDisponiveis
+    : 0;
 
   return (
     <div>
@@ -1977,24 +2273,128 @@ function MinhasCaronas() {
         description="Acompanhe as caronas que você oferece."
       />
 
+      <div className="periodo-abas">
+        <button type="button" className={periodo === "proximas" ? "primary-button" : "secondary-button"} onClick={() => trocarPeriodo("proximas")}>
+          Próximas
+        </button>
+
+        <button
+          type="button"
+          className={periodo === "passadas" ? "primary-button" : "secondary-button"}
+          onClick={() => trocarPeriodo("passadas")}
+        >
+          Histórico
+        </button>
+      </div>
+
+      {erro && (
+        <div className="error-message">
+          {erro}
+        </div>
+      )}
+
+      {sucesso && (
+        <div className="success-message">{sucesso}</div>
+      )}
+
       {loading ? (
         <div className="loading">
           Carregando...
         </div>
       ) : caronas.length === 0 ? (
-        <EmptyState
-          title="Você ainda não oferece caronas"
-          description="Crie uma rota e disponibilize uma carona."
-        />
+        !erro && (
+          <EmptyState
+            title={
+              periodo === "proximas"
+                ? "Você ainda não oferece caronas"
+                : "Nenhuma carona no histórico"
+            }
+            description={
+              periodo === "proximas"
+                ? "Crie uma rota e disponibilize uma carona."
+                : "As caronas que você já ofereceu aparecerão aqui."
+            }
+          />
+        )
       ) : (
         <div className="ride-list">
-          {caronas.map((carona) => (
-            <CaronaCard
-              key={carona.id}
-              carona={carona}
-              onReserve={() => {}}
-            />
-          ))}
+          {caronas.map((carona) => {
+            const podeCancelar = podeAlterar(carona) && new Date(carona.dataPartida) > new Date();
+            return (
+              <CaronaCard
+                key={carona.id}
+                carona={carona}
+                acoes={
+                  <div className="ride-actions">
+                    <button type="button" className="secondary-button small" onClick={() => setCaronaDetalheId(carona.id)}>Detalhes</button>
+                    {podeAlterar(carona) && (
+                      <button type="button" className="secondary-button small" onClick={() => abrirEdicao(carona)}>Editar</button>
+                    )}
+                    {podeCancelar && (
+                      <button type="button" className="secondary-button small" onClick={() => abrirCancelamento(carona)}>Cancelar</button>
+                    )}
+                  </div>
+                }
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {caronaEditando && (
+        <EditarCaronaModal
+          carona={caronaEditando}
+          onClose={() => setCaronaEditando(null)}
+          onSave={handleSalvarEdicao}
+        />
+      )}
+
+      {caronaDetalheId && (
+        <DetalheCaronaModal
+          caronaId={caronaDetalheId}
+          onClose={() => setCaronaDetalheId(null)}
+        />
+      )}
+
+      {caronaCancelando && (
+        <div className="delete-modal-overlay">
+          <div className="delete-modal">
+            <div className="delete-modal-icon">!</div>
+            <div className="delete-modal-content">
+              <h2>Cancelar carona?</h2>
+              <p>
+                Você está prestes a cancelar a carona{" "}
+                <strong>
+                  {caronaCancelando.rota.apelido ||
+                    `${caronaCancelando.rota.origemBairro} → ${caronaCancelando.rota.destinoBairro}`}
+                </strong>{" "}
+                marcada para{" "}
+                {new Date(caronaCancelando.dataPartida).toLocaleDateString("pt-BR")} às {" "} {caronaCancelando.rota.horarioPartida}. Essa ação não pode ser desfeita.
+              </p>
+              {reservasAfetadas > 0 && (
+                <p>
+                  {reservasAfetadas === 1
+                      ? "1 passageiro já reservou vaga e terá a reserva cancelada."
+                      : `${reservasAfetadas} passageiros já reservaram vaga e terão a reserva cancelada.`}
+                </p>
+              )}
+
+              {erroCancelamento && (
+                <div className="error-message">
+                  {erroCancelamento}
+                </div>
+              )}
+
+              <div className="delete-modal-actions">
+                <button className="cancel-delete-button" onClick={() => setCaronaCancelando(null)} disabled={cancelando}>
+                  Voltar
+                </button>
+                <button className="confirm-delete-button" onClick={confirmarCancelamento} disabled={cancelando}>
+                  {cancelando ? "Cancelando..." : "Cancelar carona"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -2010,8 +2410,7 @@ function MinhasReservas() {
     useState<Reserva[]>([]);
 
   const [loading, setLoading] = useState(true);
-  const [cancelando, setCancelando] =
-  useState<string | null>(null);
+  const [cancelando, setCancelando] = useState<string | null>(null);
 
 const [erro, setErro] = useState("");
 
@@ -2020,6 +2419,12 @@ const [erro, setErro] = useState("");
       try {
         setReservas(
           await listarMinhasReservas()
+        );
+        } catch (error) {
+        setErro(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível carregar suas reservas."
         );
       } finally {
         setLoading(false);
@@ -2076,10 +2481,12 @@ async function handleCancelarReserva(
           Carregando reservas...
         </div>
       ) : reservas.length === 0 ? (
+        !erro && (
         <EmptyState
           title="Nenhuma reserva"
           description="Quando você reservar uma carona, ela aparecerá aqui."
         />
+        )
       ) : (
         <div className="reservation-list">
           {[...reservas]
@@ -2104,7 +2511,7 @@ async function handleCancelarReserva(
             <div
               className="reservation-card"
               key={reserva.id}
-            > {reserva.status !== "CANCELADA" && (
+            > {reserva.status === "CONFIRMADA" && (
   <button
     type="button"
     className="secondary-button"
@@ -2132,20 +2539,26 @@ async function handleCancelarReserva(
                 <h3>
                   {reserva.carona.rota.origemBairro}
                   {" → "}
-                  Destino
+                  {reserva.carona.rota.destinoBairro}
                 </h3>
+
+                <p>
+                  {new Date(
+                    reserva.carona.dataPartida
+                  ).toLocaleDateString("pt-BR")}
+                  {" às "}
+                  {reserva.carona.rota.horarioPartida}
+                </p>
 
                 <p>
                   Motorista:{" "}
                   {reserva.carona.motorista.nome}
                 </p>
 
-                {reserva.pontoEmbarque && (
                   <p>
                     Embarque:{" "}
-                    {reserva.pontoEmbarque}
+                    {reserva.pontoEmbarque || "Não informado"}
                   </p>
-                )}
               </div>
             </div>
           ))}
@@ -2312,7 +2725,7 @@ function MeusVeiculos() {
 
                 <span>
                   {veiculo.capacidadePassageiros}{" "}
-                  passageiros
+                  passageiros + motorista
                 </span>
 
                 <div className="vehicle-actions">
@@ -2557,7 +2970,7 @@ function VeiculoForm({
           </label>
 
           <label>
-            Capacidade de passageiros
+            Passageiros (sem contar o motorista)
 
             <input
               type="number"
@@ -2573,6 +2986,7 @@ function VeiculoForm({
             />
 
             <small className="form-help">
+              Não conte o motorista: um carro de 5 lugares leva 4 passageiros.
               O sistema permite até 8 passageiros.
             </small>
           </label>
@@ -3290,7 +3704,17 @@ function MeuPerfil({
   const [perfil, setPerfil] =
     useState<Usuario | null>(usuario);
 
+  const [bairro, setBairro] = useState(
+    usuario?.bairro ?? ""
+  );
+  const [telefone, setTelefone] = useState(
+    usuario?.telefone ?? ""
+  );
+
   const [loading, setLoading] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const [sucesso, setSucesso] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -3298,6 +3722,8 @@ function MeuPerfil({
         const data = await getMeuPerfil();
 
         setPerfil(data);
+        setBairro(data.bairro);
+        setTelefone(data.telefone ?? "");
         onUpdate(data);
       } finally {
         setLoading(false);
@@ -3306,6 +3732,44 @@ function MeuPerfil({
 
     load();
   }, []);
+
+  async function handleSalvar(event: React.FormEvent) {
+    event.preventDefault();
+
+    setErro("");
+    setSucesso("");
+
+    const bairroLimpo = bairro.trim();
+    const telefoneLimpo = telefone.trim();
+
+    if (bairroLimpo.length < 2) {
+      setErro("Informe seu bairro com ao menos 2 caracteres.");
+      return;
+    }
+
+    setSalvando(true);
+
+    try {
+      const atualizado = await atualizarMeuPerfil({
+        bairro: bairroLimpo,
+        telefone: telefoneLimpo || null,
+      });
+
+      setPerfil(atualizado);
+      setBairro(atualizado.bairro);
+      setTelefone(atualizado.telefone ?? "");
+      onUpdate(atualizado);
+      setSucesso("Perfil atualizado com sucesso.");
+    } catch (error) {
+      setErro(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível salvar suas alterações."
+      );
+    } finally {
+      setSalvando(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -3320,7 +3784,7 @@ function MeuPerfil({
       <PageTitle
         kicker="CONTA"
         title="Meu perfil"
-        description="Seus dados no ViaCar."
+        description="Atualize bairro e telefone para facilitar contato e busca de caronas."
       />
 
       <div className="profile-card">
@@ -3334,29 +3798,76 @@ function MeuPerfil({
 
         <p>{perfil?.email}</p>
 
-        <div className="profile-info">
+        <div className="profile-info profile-info-readonly">
           <div>
             <small>Matrícula</small>
             <strong>
               {perfil?.matricula}
             </strong>
           </div>
-
-          <div>
-            <small>Bairro</small>
-            <strong>
-              {perfil?.bairro}
-            </strong>
-          </div>
-
-          <div>
-            <small>Telefone</small>
-            <strong>
-              {perfil?.telefone ||
-                "Não informado"}
-            </strong>
-          </div>
         </div>
+
+        <form
+          className="profile-edit-form"
+          onSubmit={handleSalvar}
+        >
+          <div className="form-row">
+            <label>
+              Bairro
+
+              <input
+                type="text"
+                value={bairro}
+                onChange={(event) =>
+                  setBairro(event.target.value)
+                }
+                placeholder="Ex.: Centro"
+                maxLength={80}
+                required
+              />
+            </label>
+
+            <label>
+              Telefone
+
+              <span className="optional-label">
+                opcional
+              </span>
+
+              <input
+                type="tel"
+                value={telefone}
+                onChange={(event) =>
+                  setTelefone(event.target.value)
+                }
+                placeholder="(47) 99999-9999"
+                maxLength={20}
+              />
+            </label>
+          </div>
+
+          {erro && (
+            <div className="error-message">
+              {erro}
+            </div>
+          )}
+
+          {sucesso && (
+            <div className="success-message">
+              {sucesso}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="primary-button profile-save-button"
+            disabled={salvando}
+          >
+            {salvando
+              ? "Salvando..."
+              : "Salvar alterações"}
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -3449,6 +3960,15 @@ function getStatusReservaLabel(
     default:
       return status;
   }
+}
+
+function getStatusCaronaExibido(carona: Carona): string {
+  const jaPartiu = new Date(carona.dataPartida) <= new Date();
+
+  if (jaPartiu && carona.status !== "CANCELADA") {
+    return "Finalizada";
+  }
+  return getStatusLabel(carona.status);
 }
 
 export default App;

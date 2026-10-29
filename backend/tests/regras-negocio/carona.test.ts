@@ -5,7 +5,7 @@ import * as caronaService from '../../src/modules/caronas/carona.service';
 import * as rotaService from '../../src/modules/rotas/rota.service';
 import * as veiculoService from '../../src/modules/veiculos/veiculo.service';
 import { AppError } from '../../src/shared/errors/app-error';
-import { criarRota, criarUsuario, criarVeiculo, diaEmTexto } from '../fabricas';
+import { criarRota, criarUsuario, criarVeiculo, diaEmTexto, criarCarona, emDias } from '../fabricas';
 
 async function capturarErro(acao: () => Promise<unknown>): Promise<AppError> {
   try {
@@ -542,5 +542,31 @@ describe('alteração e cancelamento', () => {
     );
 
     expect(erro.codigo).toBe('REGRA_NEGOCIO');
+  });
+});
+
+describe('caronas do motorista (US-11)', () => {
+  async function cenarioHistorico() {
+    const { motorista, veiculo, rota } = await cenarioMotorista();
+    // -2, e não -1: emDias conta em UTC; depois das 21h, "ontem" em UTC
+    // ainda é hoje no fuso da empresa e cairia em "próximas".
+    const antiga = await criarCarona(rota, veiculo.id, { dia: emDias(-7) });
+    const recente = await criarCarona(rota, veiculo.id, { dia: emDias(-2) });
+    const futura = await criarCarona(rota, veiculo.id, { dia: emDias(2) });
+    return { motorista, antiga, recente, futura };
+  }
+
+  it('sem período, lista só de hoje em diante', async () => {
+    const { motorista, futura } = await cenarioHistorico();
+    const caronas = await caronaService.listarDoMotorista(motorista.id);
+
+    expect(caronas.map((c) => c.id)).toEqual([futura.id]);
+  });
+
+  it('com período "passadas", lista o histórico da mais recente para a mais antiga', async () => {
+    const { motorista, antiga, recente } = await cenarioHistorico();
+    const caronas = await caronaService.listarDoMotorista(motorista.id, 'passadas');
+
+    expect(caronas.map((c) => c.id)).toEqual([recente.id, antiga.id]);
   });
 });
