@@ -287,7 +287,7 @@ Formato exigido pela DoR: **"Como [papel], eu quero [funcionalidade] para que [b
 | # | Questão | Encaminhamento |
 |---|---|---|
 | Q-01 | Bairro em texto livre quebra a busca por variação de grafia | Registrado como DT-06 |
-| Q-02 | Quem marca a carona como concluída, já que não há job de mudança de status | Registrado como DT-09; impacta a pontuação do N2 |
+| Q-02 | Quem marca a carona como concluída, já que não há job de mudança de status | **Definido em 29/10/2026** (DT-09): o motorista registra a presença de cada passageiro entre a partida e 7 dias depois; vencido o prazo, a carona fecha sozinha e as reservas sem registro não pontuam nem penalizam. Implementação pendente |
 | Q-03 | Como tratar feriado e exceção de calendário na recorrência da rota | Registrado como DT-07 |
 | Q-04 | Regra de pontuação do N2 ainda não definida (quanto vale uma viagem) | Levar ao PO no planejamento do N2 |
 | Q-05 | O formulário de reserva não avisa quem verá o ponto de embarque informado | Registrado como DT-32; texto depende de aprovação do PO |
