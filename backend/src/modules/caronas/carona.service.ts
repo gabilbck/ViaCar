@@ -13,6 +13,8 @@ import {
   INCLUDE_RESUMO,
   paraDetalhada,
   paraPublica,
+  type CamadaDeVisibilidade,
+  type CaronaComDetalhe,
   type CaronaComResumo,
   type CaronaDetalhada,
   type CaronaPublica,
@@ -20,6 +22,8 @@ import {
 import type { AtualizarCaronaDTO, BuscarCaronasDTO, CriarCaronaDTO } from './carona.schema';
 
 const STATUS_EDITAVEIS: StatusCarona[] = [StatusCarona.ABERTA, StatusCarona.LOTADA];
+
+const STATUS_ENCERRADOS: StatusCarona[] = [StatusCarona.CANCELADA, StatusCarona.CONCLUIDA];
 
 /**
  * RN-01 — CRÍTICA, enunciada no case:
@@ -297,7 +301,32 @@ export async function buscar(
   return caronas.map(paraPublica);
 }
 
-export async function buscarPorId(caronaId: string): Promise<CaronaDetalhada> {
+/**
+ * Visibilidade por vínculo com a carona, não por autenticação (DT-23): o
+ * motorista publicou a carona para ser encontrado; o passageiro só entrou numa
+ * viagem específica, e o consentimento dele tem o escopo daquela viagem.
+ *
+ * "Encerrada" olha a data além do status: sem job de transição (DT-09), uma
+ * carona de março continuaria `ABERTA` no banco e passaria por futura.
+ *
+ * A checagem usa as reservas confirmadas que o detalhe já carrega, sem
+ * consulta a mais.
+ */
+function camadaDoSolicitante(carona: CaronaComDetalhe, usuarioId: string): CamadaDeVisibilidade {
+  if (carona.rota.motoristaId === usuarioId) return 'MOTORISTA';
+  if (carona.reservas.some((reserva) => reserva.passageiro.id === usuarioId)) return 'PASSAGEIRO';
+
+  const encerrada =
+    STATUS_ENCERRADOS.includes(carona.status) || carona.dataPartida.getTime() < Date.now();
+  return encerrada ? 'OUTRO_FUNCIONARIO_CARONA_ENCERRADA' : 'OUTRO_FUNCIONARIO';
+}
+
+/**
+ * Qualquer funcionário vê o detalhe da carona — vagas, rota e motorista são o
+ * que ele precisa para decidir se reserva. O que muda conforme quem pede é só
+ * `passageiros`; o recorte de cada camada está em `carona.mapper.ts`.
+ */
+export async function buscarPorId(caronaId: string, usuarioId: string): Promise<CaronaDetalhada> {
   const carona = await prisma.carona.findUnique({
     where: { id: caronaId },
     include: INCLUDE_DETALHE,
@@ -307,7 +336,7 @@ export async function buscarPorId(caronaId: string): Promise<CaronaDetalhada> {
     throw new AppError('NAO_ENCONTRADO', 'Carona não encontrada.');
   }
 
-  return paraDetalhada(carona);
+  return paraDetalhada(carona, camadaDoSolicitante(carona, usuarioId), usuarioId);
 }
 
 /**

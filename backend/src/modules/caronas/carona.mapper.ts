@@ -29,12 +29,29 @@ export const INCLUDE_DETALHE = {
 export type CaronaComResumo = Prisma.CaronaGetPayload<{ include: typeof INCLUDE_RESUMO }>;
 export type CaronaComDetalhe = Prisma.CaronaGetPayload<{ include: typeof INCLUDE_DETALHE }>;
 
+/**
+ * Campos opcionais porque cada camada de visibilidade entrega um recorte
+ * diferente (DT-23) — ver `passageirosVisiveis()`.
+ */
 export interface PassageiroDaCarona {
-  id: string;
+  /** Só para quem está na carona: correlaciona a mesma pessoa entre caronas. */
+  id?: string;
+  /** Nome completo para quem está na carona; primeiro nome para os demais. */
   nome: string;
   bairro: string;
-  pontoEmbarque: string | null;
+  /** Endereço de rua. Só o motorista vê o de todos; o passageiro, só o próprio. */
+  pontoEmbarque?: string | null;
 }
+
+/**
+ * Quem pede o detalhe da carona, do ponto de vista da privacidade dos passageiros.
+ * Decidida no service, a partir do vínculo com a carona — não da autenticação.
+ */
+export type CamadaDeVisibilidade =
+  | 'MOTORISTA'
+  | 'PASSAGEIRO'
+  | 'OUTRO_FUNCIONARIO'
+  | 'OUTRO_FUNCIONARIO_CARONA_ENCERRADA';
 
 export interface CaronaPublica {
   id: string;
@@ -51,7 +68,11 @@ export interface CaronaPublica {
 }
 
 export interface CaronaDetalhada extends CaronaPublica {
-  passageiros: PassageiroDaCarona[];
+  /**
+   * Ausente quando quem pede não pode ver ninguém (DT-23). Não vem como lista
+   * vazia de propósito: `[]` diria "ninguém reservou", que é outra informação.
+   */
+  passageiros?: PassageiroDaCarona[];
 }
 
 export function paraPublica(carona: CaronaComResumo): CaronaPublica {
@@ -69,14 +90,62 @@ export function paraPublica(carona: CaronaComResumo): CaronaPublica {
   };
 }
 
-export function paraDetalhada(carona: CaronaComDetalhe): CaronaDetalhada {
+function primeiroNome(nome: string): string {
+  return nome.trim().split(/\s+/)[0] ?? nome;
+}
+
+/**
+ * O recorte de `passageiros` por camada (DT-23), num lugar só. Mudar o que uma
+ * camada vê é mudar aqui — e os testes de visibilidade em `carona.test.ts`.
+ *
+ * | Camada                          | Recebe                                                   |
+ * |---------------------------------|----------------------------------------------------------|
+ * | Motorista                       | id, nome, bairro e ponto de embarque de todos            |
+ * | Passageiro confirmado           | id, nome e bairro de todos; ponto de embarque só o próprio |
+ * | Outro funcionário               | primeiro nome e bairro, sem id e sem ponto de embarque   |
+ * | Outro, com a carona encerrada   | nada: o campo não vem                                    |
+ *
+ * Primeiro nome é redução, não anonimato: numa empresa pequena, "Ana" + bairro
+ * ainda identifica. Serve para "tem alguém que eu conheço nessa carona?".
+ */
+function passageirosVisiveis(
+  carona: CaronaComDetalhe,
+  camada: CamadaDeVisibilidade,
+  solicitanteId: string,
+): PassageiroDaCarona[] | undefined {
+  switch (camada) {
+    case 'MOTORISTA':
+      return carona.reservas.map(({ passageiro, pontoEmbarque }) => ({
+        id: passageiro.id,
+        nome: passageiro.nome,
+        bairro: passageiro.bairro,
+        pontoEmbarque,
+      }));
+    case 'PASSAGEIRO':
+      return carona.reservas.map(({ passageiro, pontoEmbarque }) => ({
+        id: passageiro.id,
+        nome: passageiro.nome,
+        bairro: passageiro.bairro,
+        ...(passageiro.id === solicitanteId && { pontoEmbarque }),
+      }));
+    case 'OUTRO_FUNCIONARIO':
+      return carona.reservas.map(({ passageiro }) => ({
+        nome: primeiroNome(passageiro.nome),
+        bairro: passageiro.bairro,
+      }));
+    case 'OUTRO_FUNCIONARIO_CARONA_ENCERRADA':
+      return undefined;
+  }
+}
+
+export function paraDetalhada(
+  carona: CaronaComDetalhe,
+  camada: CamadaDeVisibilidade,
+  solicitanteId: string,
+): CaronaDetalhada {
+  const passageiros = passageirosVisiveis(carona, camada, solicitanteId);
   return {
     ...paraPublica(carona),
-    passageiros: carona.reservas.map((reserva) => ({
-      id: reserva.passageiro.id,
-      nome: reserva.passageiro.nome,
-      bairro: reserva.passageiro.bairro,
-      pontoEmbarque: reserva.pontoEmbarque,
-    })),
+    ...(passageiros !== undefined && { passageiros }),
   };
 }
