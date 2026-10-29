@@ -5,6 +5,7 @@ import { loginSchema, registrarSchema } from './auth.schema';
 
 export const authRoutes = Router();
 
-// Unicas rotas publicas da API.
+// Unicas rotas publicas de negocio. As demais excecoes (health e docs) estao
+// em app.ts e listadas no RNF-01 (docs/requisitos.md, secao 5.1).
 authRoutes.post('/registrar', validarCorpo(registrarSchema), authController.registrar);
 authRoutes.post('/login', validarCorpo(loginSchema), authController.login);

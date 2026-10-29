@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { chaveDeBairro } from '../../shared/utils/bairro';
 
 const FORMATO_DATA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -50,10 +51,21 @@ export const atualizarCaronaSchema = z
     message: 'Informe ao menos um campo para atualizar.',
   });
 
+/**
+ * Filtro de bairro que vira chave vazia ("--") casaria com toda carona aberta,
+ * e o funcionário acharia que o filtro funcionou (DT-06).
+ */
+const filtroDeBairro = z
+  .string()
+  .trim()
+  .min(2)
+  .max(80)
+  .refine((texto) => chaveDeBairro(texto) !== '', 'Informe o nome do bairro.');
+
 /** Filtros da busca de caronas. Todos opcionais — sem nenhum, lista tudo que está aberto. */
 export const buscarCaronasSchema = z.object({
-  bairroOrigem: z.string().trim().min(2).max(80).optional(),
-  bairroDestino: z.string().trim().min(2).max(80).optional(),
+  bairroOrigem: filtroDeBairro.optional(),
+  bairroDestino: filtroDeBairro.optional(),
   data: dia.optional(),
   sentido: z.enum(['IDA', 'VOLTA']).optional(),
 });

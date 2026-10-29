@@ -68,7 +68,7 @@ Acúmulo de pontos e resgate de voucher/folga · avaliação de conduta · geolo
 
 | ID | Requisito | Verificação |
 |---|---|---|
-| RNF-01 | Todo endpoint, exceto cadastro e login, exige token JWT válido | Teste automatizado: requisição sem token retorna 401 |
+| RNF-01 | Todo endpoint de negócio exige token JWT válido; as únicas rotas públicas são as listadas na Seção 5.1 | Teste automatizado: requisição sem token retorna 401 |
 | RNF-02 | Senha nunca é armazenada nem trafegada em texto puro | Inspeção do schema e do payload de resposta |
 | RNF-03 | A reserva de vaga é atômica sob concorrência: duas requisições simultâneas na última vaga não podem ambas ser confirmadas | Teste de requisições paralelas |
 | RNF-04 | O contrato da API é navegável em `/docs` (Swagger) e reflete o código em produção | Conferência manual antes da entrega |
@@ -77,6 +77,20 @@ Acúmulo de pontos e resgate de voucher/folga · avaliação de conduta · geolo
 | RNF-07 | O ambiente sobe do zero em máquina limpa com Docker e um comando de seed | Ensaio de clone limpo antes do pitch |
 | RNF-08 | Os testes automatizados rodam contra banco separado, sem tocar nos dados de desenvolvimento | `npm test` em `viacar_test` |
 | RNF-09 | O vocabulário do domínio é o do case, em português, em código, banco, API e interface | Guia de estilo, Seção 5.1 |
+
+### 5.1. Rotas públicas (exceções ao RNF-01)
+
+| Rota | Por que é pública |
+|---|---|
+| `POST /auth/registrar` | Cadastro: o funcionário ainda não tem token (RF-01) |
+| `POST /auth/login` | Autenticação: é onde o token é emitido (RF-02) |
+| `GET /health` | Exceção operacional: verificação do ambiente e do banco, usada no setup e no handoff. Não expõe dado de funcionário |
+| `GET /docs` | Exceção operacional: contrato navegável exigido pelo RNF-04 |
+| `GET /openapi.json` | Exceção operacional: a mesma especificação do `/docs`, em JSON |
+
+Qualquer rota fora desta tabela exige token. Para criar uma nova rota pública, é preciso primeiro atualizar esta tabela.
+
+> No N1 o sistema roda só na rede interna da empresa, então o contrato fica aberto em qualquer ambiente. Se a API for exposta fora dela, `/docs` e `/openapi.json` devem ser desligados ou protegidos em produção.
 
 ---
 
@@ -279,15 +293,15 @@ Formato exigido pela DoR: **"Como [papel], eu quero [funcionalidade] para que [b
 
 **Premissas**
 - Todo usuário é funcionário da mesma empresa; não há cadastro público.
-- Bairro é preenchido pelo funcionário como texto livre no N1.
+- Bairro é preenchido pelo funcionário como texto livre no N1. A busca compara uma versão normalizada (sem acento, sem caixa, abreviações por extenso), então "Jd. São João" acha "jardim sao joao" (DT-06).
 - Não há cobrança, rateio de combustível nem pagamento dentro do sistema.
 - **A lista de passageiros de uma carona é visível por vínculo com a carona, não por autenticação.** O motorista publica a carona para ser encontrado, e por isso o resumo dele circula na busca; o passageiro não publicou nada para a empresa inteira, entrou numa viagem específica. Decisão do PO em 27/10/2026, detalhada no DT-23 §2.1 — **decidida, ainda não implementada**. Não houve validação com DPO ou jurídico: o ViaCar não tem cliente real no N1, então a política é premissa do time, a ser reconfirmada se o produto sair do contexto acadêmico.
 
 **Questões em aberto (para o próximo ciclo)**
 | # | Questão | Encaminhamento |
 |---|---|---|
-| Q-01 | Bairro em texto livre quebra a busca por variação de grafia | Registrado como DT-06 |
-| Q-02 | Quem marca a carona como concluída, já que não há job de mudança de status | **Definido em 29/10/2026** (DT-09): o motorista registra a presença de cada passageiro entre a partida e 7 dias depois; vencido o prazo, a carona fecha sozinha e as reservas sem registro não pontuam nem penalizam. Implementação pendente |
+| Q-01 | Bairro em texto livre quebra a busca por variação de grafia | Acento, caixa e abreviação resolvidos (DT-06). Erro de digitação continua aberto |
+| Q-02 | Quem marca a carona como concluída, já que não há job de mudança de status | Registrado como DT-09; impacta a pontuação do N2 |
 | Q-03 | Como tratar feriado e exceção de calendário na recorrência da rota | Registrado como DT-07 |
 | Q-04 | Regra de pontuação do N2 ainda não definida (quanto vale uma viagem) | Levar ao PO no planejamento do N2 |
 | Q-05 | O formulário de reserva não avisa quem verá o ponto de embarque informado | Registrado como DT-32; texto depende de aprovação do PO |

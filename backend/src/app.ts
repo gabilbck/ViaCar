@@ -34,6 +34,7 @@ app.get('/health', async (_req, res) => {
 });
 
 // Contrato da API navegavel — e o que o frontend consulta enquanto desenvolve.
+// Publico de proposito: excecao operacional do RNF-01 (docs/requisitos.md, secao 5.1).
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapi, { customSiteTitle: 'ViaCar API' }));
 app.get('/openapi.json', (_req, res) => {
   res.json(openapi);

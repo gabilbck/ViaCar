@@ -38,7 +38,7 @@ export const openapi = {
     description: [
       'API de gestao de caronas corporativas — Case 14, Equipe Draft.',
       '',
-      '**Autenticacao:** todas as rotas exigem `Authorization: Bearer <token>`, exceto `/health` e `/auth/*`.',
+      '**Autenticacao:** todas as rotas exigem `Authorization: Bearer <token>`, exceto `/auth/registrar`, `/auth/login`, `/health`, `/docs` e `/openapi.json`.',
       'O token vale 8 horas — a jornada de trabalho, para cobrir da ida ate a carona da volta.',
       '',
       '**Datas** em ISO 8601 UTC. **Ids** em UUID v4. **Corpo** em JSON camelCase.',
@@ -712,10 +712,16 @@ export const openapi = {
             name: 'bairroOrigem',
             in: 'query',
             schema: { type: 'string' },
-            description: 'Busca parcial, ignora maiusculas.',
+            description:
+              'Busca parcial. Ignora maiusculas, acentos, pontuacao e conectivos (de, da, e...), e entende abreviacoes comuns: "jd sao joao" acha "Jardim São João". Erro de digitacao nao e corrigido.',
             example: 'Costa e Silva',
           },
-          { name: 'bairroDestino', in: 'query', schema: { type: 'string' } },
+          {
+            name: 'bairroDestino',
+            in: 'query',
+            schema: { type: 'string' },
+            description: 'Mesmas regras de `bairroOrigem`.',
+          },
           {
             name: 'data',
             in: 'query',

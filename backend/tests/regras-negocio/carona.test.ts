@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { prisma } from '../../src/config/prisma';
-import { criarCaronaSchema } from '../../src/modules/caronas/carona.schema';
+import { buscarCaronasSchema, criarCaronaSchema } from '../../src/modules/caronas/carona.schema';
 import * as caronaService from '../../src/modules/caronas/carona.service';
 import * as rotaService from '../../src/modules/rotas/rota.service';
 import * as veiculoService from '../../src/modules/veiculos/veiculo.service';
@@ -367,6 +367,46 @@ describe('busca de caronas', () => {
 
     expect(await caronaService.buscar(passageiro.id, { bairroOrigem: 'costa e silva' })).toHaveLength(1);
     expect(await caronaService.buscar(passageiro.id, { bairroOrigem: 'Bucarein' })).toHaveLength(0);
+  });
+
+  /** DT-06: o bairro é texto livre, e cada funcionário digita de um jeito. */
+  it.each([
+    ['sem acento', 'Sao Joao'],
+    ['abreviado', 'Jd São João'],
+    ['com pontuação e espaços sobrando', ' jd.  são-joão '],
+    ['com um conectivo a mais', 'Jardim de São João'],
+    ['só com parte do nome', 'joão'],
+  ])('acha a rota de "Jardim São João" buscando %s', async (_caso, filtro) => {
+    const { motorista, veiculo } = await cenarioMotorista();
+    const rota = await criarRota(motorista.id, { origemBairro: 'Jardim São João' });
+    await caronaService.criar(motorista.id, {
+      rotaId: rota.id,
+      veiculoId: veiculo.id,
+      data: diaEmTexto(1),
+      vagasOfertadas: 3,
+    });
+    const passageiro = await criarUsuario();
+
+    expect(await caronaService.buscar(passageiro.id, { bairroOrigem: filtro })).toHaveLength(1);
+  });
+
+  it('normaliza também o bairro de destino', async () => {
+    const { passageiro } = await cenarioBusca();
+
+    expect(await caronaService.buscar(passageiro.id, { bairroDestino: 'zona ind. norte' })).toHaveLength(1);
+  });
+
+  it('acha a rota pelo bairro novo depois que o motorista edita', async () => {
+    const { motorista, passageiro, rota } = await cenarioBusca();
+
+    await rotaService.atualizar(rota.id, motorista.id, { origemBairro: 'Vl. Nova' });
+
+    expect(await caronaService.buscar(passageiro.id, { bairroOrigem: 'vila nova' })).toHaveLength(1);
+    expect(await caronaService.buscar(passageiro.id, { bairroOrigem: 'costa e silva' })).toHaveLength(0);
+  });
+
+  it('recusa filtro de bairro sem nome, em vez de devolver tudo', () => {
+    expect(buscarCaronasSchema.safeParse({ bairroOrigem: '--' }).success).toBe(false);
   });
 
   it('filtra por sentido', async () => {

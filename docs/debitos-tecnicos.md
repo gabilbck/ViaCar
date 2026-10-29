@@ -119,6 +119,18 @@ Também foi removido um trecho de código morto em `reserva.service.criar()`: a 
 
 **O que a auditoria confirmou estar certo:** a RN-10 com carona das 22:00 (que é 01:00Z do dia seguinte) trata o dia local corretamente nas duas pontas, e `POST /caronas/:caronaId/reservas` sem token responde 401, não 500.
 
+### DT-06 — Bairro em texto livre quebrava a busca · **RESOLVIDO em parte**
+
+A busca já ignorava maiúsculas (`mode: 'insensitive'`), mas não acentos, abreviações nem pontuação: quem buscava "jd sao joao" não achava a rota cadastrada como "Jardim São João".
+
+**Opções avaliadas:** um cadastro canônico de bairros resolveria também erro de digitação, mas exige tabela, carga inicial com os bairros de Joinville e campo de seleção no frontend. A normalização na entrada resolve as variações que aparecem de fato, sem mudar o contrato da API. Ficou a normalização.
+
+**Como foi resolvido:** a rota ganhou `origem_bairro_chave` e `destino_bairro_chave`, calculadas por `chaveDeBairro()` em `shared/utils/bairro.ts`: minúsculas, sem acento, sem pontuação, abreviação por extenso (`Jd.` → `jardim`, `Vl.` → `vila`, `Pq.` → `parque`...) e sem conectivos (`de`, `da`, `e`...). O texto digitado continua nas colunas originais, para exibir. A busca normaliza o filtro do mesmo jeito e compara chave com chave, por trecho. A migration `chave_de_busca_do_bairro` preencheu as rotas existentes com as mesmas regras em SQL.
+
+**O que ficou aberto:** erro de digitação ("Bucarem" ≠ "Bucarein"). Está na tabela da seção 2.
+
+> **Regra obrigatória:** toda escrita de `origemBairro`/`destinoBairro` grava a chave junto. O `rota.service` faz isso em `paraDadosDoBanco()`, e a fábrica de testes e o seed chamam `chaveDeBairro()` direto. Rota com chave velha some da busca sem erro nenhum. Se mudar as regras de `chaveDeBairro()`, escreva uma migration que recalcule as chaves das rotas existentes.
+
 ---
 
 ## 2. Débitos abertos
@@ -128,7 +140,7 @@ Também foi removido um trecho de código morto em `reserva.service.criar()`: a 
 | DT-02 | Listagens sem paginação | Trava com volume real | `?pagina=&limite=` e devolver `total` no corpo |
 | DT-03 | JWT sem refresh token | Sessão de 8h morre e o usuário perde o contexto | Endpoint de refresh + rotação |
 | DT-05 | Sem rate limit no `/auth/login` | Força bruta sem obstáculo | `express-rate-limit` por IP e por e-mail |
-| DT-06 | `bairro` é texto livre | "Costa e Silva" ≠ "costa e silva" quebra a busca de caronas | Tabela `bairro` ou normalização na entrada |
+| DT-06 (resto) | Erro de digitação no bairro | "Bucarem" não acha "Bucarein" — a chave de busca resolve grafia, não erro | Cadastro canônico de bairros com seleção na interface, ou `pg_trgm` para aproximar |
 | DT-07 | Recorrência de rota é simplificada (`diasSemana`) | Não trata feriado nem exceção | Tabela de exceções de calendário |
 | DT-09 | Carona não tem fim: nada grava `CONCLUIDA`, `REALIZADA` nem `NAO_COMPARECEU` | Depois da partida a carona fica sem saída — não cancela (DT-20), a reserva não cancela (DT-25) e tudo fica `CONFIRMADA` para sempre. Sem isso não há o que pontuar (N2) nem avaliar (N3) | **Ciclo de vida definido em 29/10/2026** — ver "DT-09 — Ciclo de vida da carona", logo abaixo. Falta implementar |
 | DT-15 | ESLint e Prettier não configurados | A Seção 6.3 do acordo condiciona aprovação de PR ao linter — hoje é inaplicável | `@typescript-eslint` + Prettier + passo no CI (**DevOps**) |

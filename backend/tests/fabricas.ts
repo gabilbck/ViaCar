@@ -1,5 +1,6 @@
 import type { Carona, Rota, Usuario, Veiculo } from '@prisma/client';
 import { prisma } from '../src/config/prisma';
+import { chaveDeBairro } from '../src/shared/utils/bairro';
 import { combinarDiaEHorario, textoParaHora } from '../src/shared/utils/horario';
 
 /**
@@ -58,19 +59,23 @@ export async function criarVeiculo(
   });
 }
 
+/** As chaves de busca saem sempre dos bairros finais, inclusive dos sobrescritos. */
 export async function criarRota(motoristaId: string, dados: Partial<Rota> = {}): Promise<Rota> {
+  const { origemBairro = 'Costa e Silva', destinoBairro = 'Zona Industrial Norte', ...resto } = dados;
   return prisma.rota.create({
     data: {
       motoristaId,
       apelido: 'Costa e Silva -> Empresa',
       origemEndereco: 'Rua Ministro Calogeras, 1200',
-      origemBairro: 'Costa e Silva',
+      origemBairro,
+      origemBairroChave: chaveDeBairro(origemBairro),
       destinoEndereco: 'Rod. Paulo Schroeder, 3000',
-      destinoBairro: 'Zona Industrial Norte',
+      destinoBairro,
+      destinoBairroChave: chaveDeBairro(destinoBairro),
       horarioPartida: textoParaHora('07:30'),
       sentido: 'IDA',
       diasSemana: [1, 2, 3, 4, 5],
-      ...dados,
+      ...resto,
     },
   });
 }
