@@ -127,9 +127,70 @@ Também foi removido um trecho de código morto em `reserva.service.criar()`: a 
 | DT-05 | Sem rate limit no `/auth/login` | Força bruta sem obstáculo | `express-rate-limit` por IP e por e-mail |
 | DT-06 | `bairro` é texto livre | "Costa e Silva" ≠ "costa e silva" quebra a busca de caronas | Tabela `bairro` ou normalização na entrada |
 | DT-07 | Recorrência de rota é simplificada (`diasSemana`) | Não trata feriado nem exceção | Tabela de exceções de calendário |
-| DT-09 | Sem job de transição de status da carona | `ABERTA` → `EM_ANDAMENTO` → `CONCLUIDA` na mão | Agendador, ou transição sob demanda na leitura |
+| DT-09 | Carona não tem fim: nada grava `CONCLUIDA`, `REALIZADA` nem `NAO_COMPARECEU` | Depois da partida a carona fica sem saída — não cancela (DT-20), a reserva não cancela (DT-25) e tudo fica `CONFIRMADA` para sempre. Sem isso não há o que pontuar (N2) nem avaliar (N3) | **Ciclo de vida definido em 29/10/2026** — ver "DT-09 — Ciclo de vida da carona", logo abaixo. Falta implementar |
 | DT-15 | ESLint e Prettier não configurados | A Seção 6.3 do acordo condiciona aprovação de PR ao linter — hoje é inaplicável | `@typescript-eslint` + Prettier + passo no CI (**DevOps**) |
 | DT-16 | Sem `helmet` nem cabeçalhos de segurança | Respostas sem proteção básica de browser | `app.use(helmet())` |
+
+### DT-09 — Ciclo de vida da carona
+
+> **Status:** definido em 29/10/2026 · **implementação pendente**
+> Esta seção registra a definição. Enquanto o código não mudar, a API **não** se comporta assim: nada grava `CONCLUIDA`, `REALIZADA` nem `NAO_COMPARECEU`.
+
+#### O problema não é só a falta de um job
+
+O registro original falava em "transição na mão". Na prática, **não existe transição nenhuma**, nem manual: nenhum endpoint grava os status de fim de viagem. O efeito aparece já no N1, não só no N2:
+
+- Depois da partida, o motorista não consegue cancelar (DT-20) e o passageiro também não (DT-25), corretamente, para não apagar o histórico. Mas também não há o que fazer no lugar: a carona fica `ABERTA` ou `LOTADA` e as reservas ficam `CONFIRMADA` para sempre.
+- A mensagem de erro de `carona.service.cancelar()` manda "encerrar as reservas como realizadas ou não comparecidas", um caminho que não existe.
+- O código contorna isso olhando a data em vários lugares (busca, DT-12, rota com carona agendada). Cada novo recurso precisa lembrar de fazer o mesmo.
+
+#### A definição
+
+```mermaid
+stateDiagram-v2
+    [*] --> ABERTA
+    ABERTA --> LOTADA: última vaga ocupada (RN-07)
+    LOTADA --> ABERTA: vaga devolvida (RN-06)
+    ABERTA --> CANCELADA: motorista cancela, antes da partida (RN-08)
+    LOTADA --> CANCELADA: motorista cancela, antes da partida (RN-08)
+    ABERTA --> CONCLUIDA: motorista registra a presença, ou o prazo vence
+    LOTADA --> CONCLUIDA: motorista registra a presença, ou o prazo vence
+    CANCELADA --> [*]
+    CONCLUIDA --> [*]
+```
+
+| Pergunta | Definição |
+|---|---|
+| Quando a viagem termina? | Quando a carona é **fechada**: o motorista registra a presença, ou vence o prazo de fechamento. A partida em si não muda status nenhum |
+| Quem registra a presença? | **O motorista**, marcando cada reserva confirmada como `REALIZADA` ou `NAO_COMPARECEU`. Era o que o DT-25 já registrava. O passageiro não confirma nem contesta |
+| Quando pode fechar? | Da `dataPartida` até **7 dias depois**. Antes da partida não há presença a registrar; para desistir antes da partida, o caminho continua sendo cancelar |
+| E se o motorista não fechar? | Vencidos os 7 dias, a carona fecha sozinha: vira `CONCLUIDA`, e cada reserva ainda `CONFIRMADA` vira **`SEM_REGISTRO`**, um status novo |
+| O que pontua e o que pesa na conduta? | Só `REALIZADA` é evidência de viagem. `NAO_COMPARECEU` alimenta a conduta (N3). `SEM_REGISTRO` **não pontua nem penaliza** |
+
+**Por que `SEM_REGISTRO` e não presumir um dos dois:** presumir `REALIZADA` faria a empresa pagar pontos (que viram voucher de combustível e folga) por viagens que ninguém confirmou. Presumir `NAO_COMPARECEU` sujaria a conduta do passageiro por uma omissão do motorista. Sem evidência, a reserva fica de fora das duas contas.
+
+**Por que sem job agendado:** o fechamento por prazo é materializado **sob demanda**, na transação de quem tocar a carona depois do prazo (o fechamento, a leitura do detalhe, a futura pontuação). A regra é uma função só, e um job diário pode ser acrescentado depois sem mudar nada dela. Isso também evita mais um processo para o DevOps operar.
+
+**`EM_ANDAMENTO` não é gravado.** "Já partiu" sai de `dataPartida`. Gravar estado derivado foi exatamente o que gerou a armadilha 3.10, e sem GPS o sistema não sabe se a viagem está de fato em andamento. O valor continua no enum, porque removê-lo exige migration destrutiva, mas nenhum código deve escrevê-lo.
+
+#### O que ficou de fora, deliberadamente
+
+- **Corrigir a marcação depois de fechar.** `CONCLUIDA` é terminal, como já é hoje. Se aparecer demanda, é uma decisão nova, porque mexe em pontos já creditados.
+- **Motorista que não apareceu.** Ele não consegue cancelar depois da partida e, se não fechar, a carona termina com tudo em `SEM_REGISTRO`: ninguém pontua e ninguém é punido. Registrar a falta do motorista é assunto da avaliação de conduta (N3).
+- **Quanto vale uma viagem.** Continua sendo a Q-04 de `requisitos.md`.
+
+#### Para quem for implementar
+
+1. **Migration:** `SEM_REGISTRO` no enum `StatusReserva`. Só acrescenta, não altera nada que existe.
+2. **Uma função que responde "esta carona está fechada?"** (status terminal **ou** prazo vencido) e uma que materializa o fechamento por prazo. Todo lugar que hoje decide pela data passa a perguntar a ela.
+3. **Endpoint de fechamento** (sugestão: `POST /caronas/{id}/concluir`, com a presença de cada reserva confirmada). Ele deve:
+   - recusar fora da janela;
+   - exigir que **todas** as reservas confirmadas venham marcadas, nem mais nem menos;
+   - aceitar lista vazia quando ninguém reservou;
+   - rodar com a carona **travada**, porque é o quarto escritor de status (armadilha 3.10).
+4. **Mensagem de `cancelar()`:** passa a apontar o fechamento, que agora existe.
+5. **Frontend:** rótulo para `SEM_REGISTRO` (os outros status já têm, em `App.tsx`) e a tela de registro de presença.
+6. **Testes:** as duas pontas da janela (no instante da partida, e 7 dias depois); fechamento parcial recusado; fechamento por prazo materializado na leitura; carona sem reserva; e que `CONCLUIDA` não reabre.
 
 ### Achados das revisões de fechamento, adiados de propósito
 
