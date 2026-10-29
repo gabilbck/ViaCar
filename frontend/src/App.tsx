@@ -25,6 +25,7 @@ import {
   registrarUsuario,
   atualizarCarona,
   cancelarCarona,
+  buscarCarona,
 } from "../api";
 
 import type {
@@ -33,6 +34,7 @@ import type {
   Rota,
   Usuario,
   Veiculo,
+  CaronaDetalhada,
 } from "./types";
 
 type Tela =
@@ -43,6 +45,7 @@ type Tela =
   | "veiculos"
   | "rotas"
   | "perfil"
+  | "detalhes-carona"
   | "oferecer";
 
 function App() {
@@ -1379,9 +1382,9 @@ await criarCarona({
 
                 {veiculoSelecionado && (
                   <small className="form-help">
-                    Capacidade do veículo:{" "}
+                    Este veículo comporta até:{" "}
                     {veiculoSelecionado.capacidadePassageiros}{" "}
-                    passageiros.
+                    passageiros, sem contar o motorista.
                   </small>
                 )}
               </label>
@@ -1763,7 +1766,7 @@ function CaronaCard({
 
         <div>
           <span className={`status-badge ${ carona.status === "CANCELADA" ? "status-cancelada" : ""}`}>
-            {getStatusLabel(carona.status)}
+            {getStatusCaronaExibido(carona)}
           </span>
 
           <h3>
@@ -2086,6 +2089,82 @@ function EditarCaronaModal({
   );
 }
 
+function DetalheCaronaModal({
+  caronaId,
+  onClose,
+}: {
+  caronaId: string;
+  onClose: () => void;
+}) {
+  const [carona, setCarona] = useState<CaronaDetalhada | null>(null);
+  const [erro, setErro] = useState("");
+
+  useEffect(() => {
+    async function load() {
+      try {
+        setCarona(await buscarCarona(caronaId));
+      } catch {
+        setErro("Não foi possível carregar os detalhes da carona. Tente novamente.");
+      }
+    }
+
+    load();
+  }, [caronaId]);
+
+  const ocupadas = carona
+    ? carona.vagasOfertadas - carona.vagasDisponiveis
+    : 0;
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <button type="button" className="modal-close" onClick={onClose}>×</button>
+        <span className="section-kicker">DETALHES DA CARONA</span>
+        {erro ? (
+          <div className="error-message">{erro}</div>
+        ) : !carona ? (
+          <div className="loading"> Carregando detalhes da carona...</div>
+        ) : (
+          <>
+            <h2>{carona.rota.apelido || `${carona.rota.origemBairro} → ${carona.rota.destinoBairro}`}</h2>
+            <div className="modal-summary">
+              <strong>{new Date(carona.dataPartida).toLocaleDateString("pt-BR")} às{" "}{carona.rota.horarioPartida}</strong>
+              <span>{getStatusCaronaExibido(carona)} · {carona.veiculo.modelo} ({carona.veiculo.placa})</span>
+              <span> | {ocupadas} de {carona.vagasOfertadas} vagas ocupadas</span>
+            </div>
+            {carona.observacao && (
+              <p><strong>Observação:</strong> {carona.observacao}</p>
+            )}
+            <h3>Passageiros confirmados</h3>
+            {carona.passageiros.length === 0 ? (
+              <p className="form-hint">
+                {carona.status === "CANCELADA"
+                  ? "Esta carona foi cancelada. As reservas foram automaticamente canceladas."
+                  : "Nenhum passageiro confirmou a reserva ainda."}
+              </p>
+            ) : (
+              <ul className="passageiros-lista">
+                {carona.passageiros.map((passageiro) => (
+                  <li key={passageiro.id}>
+                    <strong>{passageiro.nome}</strong>
+                    <span>
+                      {passageiro.bairro} · Embarque:{" "}
+                      {passageiro.pontoEmbarque || "Não informado"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+
+        <div className="modal-actions">
+          <button type="button" className="secondary-button" onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ==========================================
 // MINHAS CARONAS
@@ -2101,6 +2180,7 @@ function MinhasCaronas() {
   const [caronaCancelando, setCaronaCancelando] = useState<Carona | null>(null);
   const [cancelando, setCancelando] = useState(false);
   const [erroCancelamento, setErroCancelamento] = useState("");
+  const [caronaDetalheId, setCaronaDetalheId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -2245,14 +2325,15 @@ function MinhasCaronas() {
                 key={carona.id}
                 carona={carona}
                 acoes={
-                  podeAlterar(carona) ? (
-                    <div className="ride-actions">
+                  <div className="ride-actions">
+                    <button type="button" className="secondary-button small" onClick={() => setCaronaDetalheId(carona.id)}>Detalhes</button>
+                    {podeAlterar(carona) && (
                       <button type="button" className="secondary-button small" onClick={() => abrirEdicao(carona)}>Editar</button>
-                      {podeCancelar && (
-                        <button type="button" className="secondary-button small" onClick={() => abrirCancelamento(carona)}>Cancelar</button>
-                      )}
-                    </div>
-                  ) : null
+                    )}
+                    {podeCancelar && (
+                      <button type="button" className="secondary-button small" onClick={() => abrirCancelamento(carona)}>Cancelar</button>
+                    )}
+                  </div>
                 }
               />
             );
@@ -2265,6 +2346,13 @@ function MinhasCaronas() {
           carona={caronaEditando}
           onClose={() => setCaronaEditando(null)}
           onSave={handleSalvarEdicao}
+        />
+      )}
+
+      {caronaDetalheId && (
+        <DetalheCaronaModal
+          caronaId={caronaDetalheId}
+          onClose={() => setCaronaDetalheId(null)}
         />
       )}
 
@@ -2637,7 +2725,7 @@ function MeusVeiculos() {
 
                 <span>
                   {veiculo.capacidadePassageiros}{" "}
-                  passageiros
+                  passageiros + motorista
                 </span>
 
                 <div className="vehicle-actions">
@@ -2882,7 +2970,7 @@ function VeiculoForm({
           </label>
 
           <label>
-            Capacidade de passageiros
+            Passageiros (sem contar o motorista)
 
             <input
               type="number"
@@ -2898,6 +2986,7 @@ function VeiculoForm({
             />
 
             <small className="form-help">
+              Não conte o motorista: um carro de 5 lugares leva 4 passageiros.
               O sistema permite até 8 passageiros.
             </small>
           </label>
@@ -3871,6 +3960,15 @@ function getStatusReservaLabel(
     default:
       return status;
   }
+}
+
+function getStatusCaronaExibido(carona: Carona): string {
+  const jaPartiu = new Date(carona.dataPartida) <= new Date();
+
+  if (jaPartiu && carona.status !== "CANCELADA") {
+    return "Finalizada";
+  }
+  return getStatusLabel(carona.status);
 }
 
 export default App;

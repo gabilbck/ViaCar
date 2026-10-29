@@ -1,6 +1,7 @@
 import type {
   ApiError,
   Carona,
+  CaronaDetalhada,
   LoginResponse,
   Reserva,
   Rota,
@@ -323,8 +324,8 @@ export async function listarMinhasCaronas(periodo: "proximas" | "passadas" = "pr
   return request<Carona[]>(`/caronas/minhas?periodo=${periodo}`);
 }
 
-export async function buscarCarona(id: string): Promise<Carona> {
-  return request<Carona>(`/caronas/${id}`);
+export async function buscarCarona(id: string): Promise<CaronaDetalhada> {
+  return request<CaronaDetalhada>(`/caronas/${id}`);
 }
 
 export async function atualizarCarona(
