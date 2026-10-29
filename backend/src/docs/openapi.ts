@@ -225,14 +225,28 @@ export const openapi = {
             properties: {
               passageiros: {
                 type: 'array',
-                description: 'Só aparece em GET /caronas/{id}. Na listagem, use vagasDisponiveis.',
+                description:
+                  'Só aparece em GET /caronas/{id}. Na listagem, use vagasDisponiveis. O recorte depende de quem pede — ver a descricao do endpoint. **Ausente** quando quem pede nao pode ver ninguem; `[]` significa "ninguem reservou".',
                 items: {
                   type: 'object',
+                  required: ['nome', 'bairro'],
                   properties: {
-                    id: { type: 'string', format: 'uuid' },
-                    nome: { type: 'string' },
+                    id: {
+                      type: 'string',
+                      format: 'uuid',
+                      description: 'So para o motorista e os passageiros confirmados.',
+                    },
+                    nome: {
+                      type: 'string',
+                      description: 'Nome completo para quem esta na carona; so o primeiro nome para os demais.',
+                    },
                     bairro: { type: 'string' },
-                    pontoEmbarque: { type: 'string', nullable: true },
+                    pontoEmbarque: {
+                      type: 'string',
+                      nullable: true,
+                      description:
+                        'O motorista ve o de todos; o passageiro, so o proprio. Ausente nos demais casos.',
+                    },
                   },
                 },
               },
@@ -776,6 +790,18 @@ export const openapi = {
       get: {
         tags: ['Caronas'],
         summary: 'Detalhe da carona, com a lista de passageiros',
+        description: [
+          'Qualquer funcionario autenticado ve o detalhe (vagas, rota, motorista, veiculo). O campo `passageiros` depende do vinculo de quem pede com a carona (DT-23):',
+          '',
+          '| Quem pede | `passageiros` |',
+          '|---|---|',
+          '| Motorista da carona | `id`, nome completo, bairro e `pontoEmbarque` de todos |',
+          '| Passageiro confirmado | `id`, nome completo e bairro de todos; `pontoEmbarque` so o proprio |',
+          '| Outro funcionario | Primeiro nome e bairro, sem `id` e sem `pontoEmbarque` |',
+          '| Outro funcionario, carona encerrada | Campo ausente |',
+          '',
+          'Encerrada = `CANCELADA`, `CONCLUIDA` ou com `dataPartida` no passado. O primeiro nome reduz a exposicao, mas **nao anonimiza**: junto com o bairro, ainda pode identificar a pessoa.',
+        ].join('\n'),
         responses: {
           200: {
             description: 'Carona detalhada',

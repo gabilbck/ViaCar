@@ -1,3 +1,4 @@
+import { StatusCarona, StatusReserva } from '@prisma/client';
 import { describe, expect, it } from 'vitest';
 import { prisma } from '../../src/config/prisma';
 import { buscarCaronasSchema, criarCaronaSchema } from '../../src/modules/caronas/carona.schema';
@@ -5,7 +6,14 @@ import * as caronaService from '../../src/modules/caronas/carona.service';
 import * as rotaService from '../../src/modules/rotas/rota.service';
 import * as veiculoService from '../../src/modules/veiculos/veiculo.service';
 import { AppError } from '../../src/shared/errors/app-error';
-import { criarRota, criarUsuario, criarVeiculo, diaEmTexto, criarCarona, emDias } from '../fabricas';
+import {
+  criarCarona,
+  criarRota,
+  criarUsuario,
+  criarVeiculo,
+  diaEmTexto,
+  emDias,
+} from '../fabricas';
 
 async function capturarErro(acao: () => Promise<unknown>): Promise<AppError> {
   try {
@@ -431,6 +439,117 @@ describe('busca de caronas', () => {
   });
 });
 
+/**
+ * DT-23: visibilidade por vínculo com a carona. O que este endpoint esconde não
+ * aparece em nenhuma tela — se a exposição voltar numa refatoração, só estes
+ * testes percebem.
+ */
+describe('visibilidade dos passageiros no detalhe', () => {
+  async function cenarioComPassageiros(dados: { dia?: Date; status?: StatusCarona } = {}) {
+    const { motorista, veiculo, rota } = await cenarioMotorista();
+    const carona = await criarCarona(rota, veiculo.id, dados);
+    const ana = await criarUsuario({ nome: 'Ana Paula Souza', bairro: 'Bucarein' });
+    const bruno = await criarUsuario({ nome: 'Bruno Lima', bairro: 'Glória' });
+    // criadoEm explícito: a lista sai nessa ordem, e um INSERT só daria o mesmo
+    // instante para as duas.
+    await prisma.reserva.createMany({
+      data: [
+        {
+          caronaId: carona.id,
+          passageiroId: ana.id,
+          pontoEmbarque: 'Rua Blumenau, 840',
+          criadoEm: new Date('2026-01-01T10:00:00Z'),
+        },
+        {
+          caronaId: carona.id,
+          passageiroId: bruno.id,
+          pontoEmbarque: 'Rua Ottokar Doerffel, 12',
+          criadoEm: new Date('2026-01-01T10:05:00Z'),
+        },
+      ],
+    });
+    return { motorista, ana, bruno, carona };
+  }
+
+  it('o motorista vê id, nome completo, bairro e ponto de embarque de todos', async () => {
+    const { motorista, ana, bruno, carona } = await cenarioComPassageiros();
+
+    const { passageiros } = await caronaService.buscarPorId(carona.id, motorista.id);
+
+    expect(passageiros).toEqual([
+      { id: ana.id, nome: 'Ana Paula Souza', bairro: 'Bucarein', pontoEmbarque: 'Rua Blumenau, 840' },
+      { id: bruno.id, nome: 'Bruno Lima', bairro: 'Glória', pontoEmbarque: 'Rua Ottokar Doerffel, 12' },
+    ]);
+  });
+
+  it('o passageiro confirmado vê os colegas, mas só o próprio ponto de embarque', async () => {
+    const { ana, bruno, carona } = await cenarioComPassageiros();
+
+    const { passageiros } = await caronaService.buscarPorId(carona.id, ana.id);
+
+    expect(passageiros).toEqual([
+      { id: ana.id, nome: 'Ana Paula Souza', bairro: 'Bucarein', pontoEmbarque: 'Rua Blumenau, 840' },
+      { id: bruno.id, nome: 'Bruno Lima', bairro: 'Glória' },
+    ]);
+  });
+
+  it('outro funcionário vê só primeiro nome e bairro, sem id e sem ponto de embarque', async () => {
+    const { carona } = await cenarioComPassageiros();
+    const curioso = await criarUsuario();
+
+    const detalhe = await caronaService.buscarPorId(carona.id, curioso.id);
+
+    expect(detalhe.passageiros).toEqual([
+      { nome: 'Ana', bairro: 'Bucarein' },
+      { nome: 'Bruno', bairro: 'Glória' },
+    ]);
+    expect(detalhe.vagasDisponiveis).toBe(1);
+  });
+
+  it.each([
+    ['cancelada', { status: StatusCarona.CANCELADA }],
+    ['concluída', { dia: emDias(-2), status: StatusCarona.CONCLUIDA }],
+    // Sem job de status (DT-09), a carona antiga continua ABERTA no banco.
+    ['já partida, mesmo ainda ABERTA', { dia: emDias(-2) }],
+  ])('outro funcionário não recebe o campo quando a carona está %s', async (_caso, dados) => {
+    const { carona } = await cenarioComPassageiros(dados);
+    const curioso = await criarUsuario();
+
+    const detalhe = await caronaService.buscarPorId(carona.id, curioso.id);
+
+    expect(detalhe).not.toHaveProperty('passageiros');
+    expect(detalhe.vagasDisponiveis).toBeDefined();
+  });
+
+  it('quem está na carona continua vendo a lista depois da viagem', async () => {
+    const { motorista, ana, carona } = await cenarioComPassageiros({ dia: emDias(-2) });
+
+    expect((await caronaService.buscarPorId(carona.id, motorista.id)).passageiros).toHaveLength(2);
+    expect((await caronaService.buscarPorId(carona.id, ana.id)).passageiros).toHaveLength(2);
+  });
+
+  it('quem cancelou a reserva passa a ver como qualquer outro funcionário', async () => {
+    const { ana, carona } = await cenarioComPassageiros();
+    await prisma.reserva.updateMany({
+      where: { caronaId: carona.id, passageiroId: ana.id },
+      data: { status: StatusReserva.CANCELADA, canceladoEm: new Date() },
+    });
+
+    const { passageiros } = await caronaService.buscarPorId(carona.id, ana.id);
+
+    expect(passageiros).toEqual([{ nome: 'Bruno', bairro: 'Glória' }]);
+  });
+
+  it('a lista vem vazia, não ausente, quando ninguém reservou', async () => {
+    const { motorista, veiculo, rota } = await cenarioMotorista();
+    const carona = await criarCarona(rota, veiculo.id);
+    const curioso = await criarUsuario();
+
+    expect((await caronaService.buscarPorId(carona.id, motorista.id)).passageiros).toEqual([]);
+    expect((await caronaService.buscarPorId(carona.id, curioso.id)).passageiros).toEqual([]);
+  });
+});
+
 describe('alteração e cancelamento', () => {
   it('não deixa outro motorista alterar a carona', async () => {
     const { motorista, veiculo, rota } = await cenarioMotorista();
@@ -485,7 +604,7 @@ describe('alteração e cancelamento', () => {
     const passageiro = await criarUsuario();
     await prisma.reserva.create({ data: { caronaId: carona.id, passageiroId: passageiro.id } });
 
-    const detalhe = await caronaService.buscarPorId(carona.id);
+    const detalhe = await caronaService.buscarPorId(carona.id, motorista.id);
 
     expect(detalhe.vagasOfertadas).toBe(4);
     expect(detalhe.vagasDisponiveis).toBe(3);

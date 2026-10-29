@@ -21,7 +21,7 @@ export const listarMinhas: RequestHandler = async (req, res) => {
 };
 
 export const buscarPorId: RequestHandler = async (req, res) => {
-  res.json(await caronaService.buscarPorId(parametroObrigatorio(req, 'id')));
+  res.json(await caronaService.buscarPorId(parametroObrigatorio(req, 'id'), usuarioLogado(req)));
 };
 
 export const atualizar: RequestHandler = async (req, res) => {
