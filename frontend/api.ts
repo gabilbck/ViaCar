@@ -1,6 +1,7 @@
 import type {
   ApiError,
   Carona,
+  CaronaDetalhada,
   LoginResponse,
   Reserva,
   Rota,
@@ -170,7 +171,7 @@ export async function getMeuPerfil(): Promise<Usuario> {
 }
 
 export async function atualizarMeuPerfil(data: {
-  telefone?: string;
+  telefone?: string | null;
   bairro?: string;
 }): Promise<Usuario> {
   const usuario = await request<Usuario>("/usuarios/me", {
@@ -319,12 +320,12 @@ export async function listarCaronas(filtros?: {
   );
 }
 
-export async function listarMinhasCaronas(): Promise<Carona[]> {
-  return request<Carona[]>("/caronas/minhas");
+export async function listarMinhasCaronas(periodo: "proximas" | "passadas" = "proximas"): Promise<Carona[]> {
+  return request<Carona[]>(`/caronas/minhas?periodo=${periodo}`);
 }
 
-export async function buscarCarona(id: string): Promise<Carona> {
-  return request<Carona>(`/caronas/${id}`);
+export async function buscarCarona(id: string): Promise<CaronaDetalhada> {
+  return request<CaronaDetalhada>(`/caronas/${id}`);
 }
 
 export async function atualizarCarona(

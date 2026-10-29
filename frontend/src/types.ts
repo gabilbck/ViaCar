@@ -69,6 +69,19 @@ export interface Carona {
   };
 }
 
+/** Passageiro confirmado. Só vem a reserva confirmada; quem cancelou não aparece. */
+export interface PassageiroCarona {
+  id: string;
+  nome: string;
+  bairro: string;
+  pontoEmbarque: string | null;
+}
+
+/** Só mostra passageiro ao motorista. */
+export interface CaronaDetalhada extends Carona {
+  passageiros: PassageiroCarona[];
+}
+
 export interface Reserva {
   id: string;
   caronaId: string;

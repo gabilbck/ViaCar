@@ -58,6 +58,11 @@ export const buscarCaronasSchema = z.object({
   sentido: z.enum(['IDA', 'VOLTA']).optional(),
 });
 
+export const listarMinhasCaronasSchema = z.object({
+  periodo: z.enum(['proximas', 'passadas']).default('proximas'),
+});
+
+export type ListarMinhasCaronasDTO = z.infer<typeof listarMinhasCaronasSchema>;
 export type CriarCaronaDTO = z.infer<typeof criarCaronaSchema>;
 export type AtualizarCaronaDTO = z.infer<typeof atualizarCaronaSchema>;
 export type BuscarCaronasDTO = z.infer<typeof buscarCaronasSchema>;
