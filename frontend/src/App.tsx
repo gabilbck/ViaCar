@@ -361,7 +361,7 @@ function LoginScreen({
             </div>
 
             <div className="password-hint">
-              A senha deve possuir pelo menos 8 caracteres.
+              Mínimo de 8 caracteres, com uma letra maiúscula, um número e um caractere especial (ex.: ! @ # $).
             </div>
 
             {erro && (

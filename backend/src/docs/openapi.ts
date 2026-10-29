@@ -304,7 +304,7 @@ export const openapi = {
                 properties: {
                   nome: { type: 'string', minLength: 3, maxLength: 120 },
                   email: { type: 'string', format: 'email', maxLength: 160 },
-                  senha: { type: 'string', minLength: 8, maxLength: 72 },
+                  senha: { type: 'string', minLength: 8, maxLength: 72, description: 'Senha precisa ter ao menos 8 caracteres, uma maiúscula, um número e um caractere especial.' },
                   matricula: { type: 'string', minLength: 2, maxLength: 20 },
                   telefone: { type: 'string', maxLength: 20 },
                   bairro: { type: 'string', minLength: 2, maxLength: 80 },

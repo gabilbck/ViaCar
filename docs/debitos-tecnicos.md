@@ -17,6 +17,10 @@ A regra crítica do case (*o motorista não pode oferecer mais vagas do que a ca
 
 **Verificado:** inserção de 6 vagas em veículo de capacidade 4, direto no `psql`, é rejeitada.
 
+### DT-04 — Sem política de força de senha · **RESOLVIDO**
+
+O cadastro aceitava `12345678`. Agora a senha precisa de 8+ caracteres, ao menos uma letra maiúscula, um número e um caractere especial (`registrarSchema` em `auth.schema.ts`). Vale só no cadastro: senhas já existentes, como a `viacar123` dos usuários do seed, não são revalidadas e continuam funcionando no login.
+
 ### DT-08 — Erro de banco chegava como HTTP 500 · **RESOLVIDO no D2**
 
 Descoberto na revisão pré-commit do D2. Violação de constraint chega ao Node de duas formas diferentes:
@@ -123,7 +127,6 @@ Também foi removido um trecho de código morto em `reserva.service.criar()`: a 
 |---|---|---|---|
 | DT-02 | Listagens sem paginação | Trava com volume real | `?pagina=&limite=` e devolver `total` no corpo |
 | DT-03 | JWT sem refresh token | Sessão de 8h morre e o usuário perde o contexto | Endpoint de refresh + rotação |
-| DT-04 | Sem política de força de senha | Aceita `12345678` | Regra mínima no `registrarSchema` |
 | DT-05 | Sem rate limit no `/auth/login` | Força bruta sem obstáculo | `express-rate-limit` por IP e por e-mail |
 | DT-06 | `bairro` é texto livre | "Costa e Silva" ≠ "costa e silva" quebra a busca de caronas | Tabela `bairro` ou normalização na entrada |
 | DT-07 | Recorrência de rota é simplificada (`diasSemana`) | Não trata feriado nem exceção | Tabela de exceções de calendário |

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { prisma } from '../../src/config/prisma';
 import * as authService from '../../src/modules/auth/auth.service';
 import { AppError } from '../../src/shared/errors/app-error';
+import { loginSchema, registrarSchema } from '../../src/modules/auth/auth.schema';
 
 const NOVO = {
   nome: 'Willian Squena',
@@ -126,4 +127,54 @@ describe('login', () => {
     expect(erro.codigo).toBe('SEM_PERMISSAO');
     expect(erro.message).toContain('RH');
   });
+});
+
+describe('política de senha (DT-04)', () => {
+  /** Mensagens de erro do campo senha; lista vazia = senha aceita. */
+  function errosDeSenha(senha: string): string[] {
+    const resultado = registrarSchema.safeParse({ ...NOVO, senha });
+    if (resultado.success) return [];
+    return resultado.error.issues
+      .filter((problema) => problema.path[0] === 'senha')
+      .map((problema) => problema.message);
+  }
+
+  it('aceita senha com maiúscula, número e caractere especial', () => {
+    expect(errosDeSenha('Carona@2026')).toEqual([]);
+  });
+
+  it('aceita maiúscula acentuada', () => {
+    expect(errosDeSenha('Ética#2026')).toEqual([]);
+  });
+
+  it('recusa senha com menos de 8 caracteres', () => {
+    expect(errosDeSenha('Ab1!')).toContain('Senha precisa ter ao menos 8 caracteres.');
+  });
+
+  it('recusa senha sem letra maiúscula', () => {
+    expect(errosDeSenha('carona@2026')).toContain('Senha precisa ter ao menos uma letra maiúscula.');
+  });
+
+  it('recusa senha sem número', () => {
+    expect(errosDeSenha('Carona@@')).toContain('Senha precisa ter ao menos um número.');
+  });
+
+  it('recusa senha sem caractere especial', () => {
+    expect(errosDeSenha('Carona2026')).toContain(
+      'Senha precisa ter ao menos um caractere especial (ex.: ! @ # $).',
+    );
+  });
+
+    it('recusa senha com mais de 72 caracteres', () => {
+    const longa = `Aa1!${'x'.repeat(69)}`;
+
+    expect(errosDeSenha(longa)).toContain('Senha pode ter no máximo 72 caracteres.');
+  });
+
+  it('não exige a política no login: senhas antigas continuam entrando', () => {
+    const resultado = loginSchema.safeParse({ email: NOVO.email, senha: 'viacar123' });
+
+    expect(resultado.success).toBe(true);
+  });
+
 });
